@@ -134,7 +134,9 @@ public class SDLActivity extends org.libsdl.app.SDLActivity {
 	// there's already a "getContext()" in org.libsdl.app.SDLActivity ...
 	public static native void nativeSetJNIEnv();
 
+/* I think I got this loading in .dex now
 	// this is the one point of JNI entry that I need for my LuaJIT->Java->LuaJIT callbacks to work
 	// (I honestly don't even need the Java side, just the JNI C function)
 	public static native Object nativeCallback(long funcptr, Object arg);
+*/
 }

@@ -590,6 +590,7 @@ static int pmain(lua_State *L)
 JNIEnv * jniEnv = NULL;
 JNIEXPORT void JNICALL Java_io_github_thenumbernine_SDLLuaJIT_SDLActivity_nativeSetJNIEnv(JNIEnv * jniEnv_) { jniEnv = jniEnv_; }
 
+#if 0 // I think I got this loading in .dex now
 // Chris: for runtime class generation
 JNIEXPORT jobject JNICALL
 Java_io_github_thenumbernine_SDLLuaJIT_SDLActivity_nativeCallback(
@@ -610,7 +611,7 @@ Java_io_github_thenumbernine_SDLLuaJIT_SDLActivity_nativeCallback(
 //printf("native callback result %p\n", results);
 	return results;
 }
-
+#endif
 
 
 // last arg is for chdir() then thrown away
