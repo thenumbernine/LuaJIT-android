@@ -167,7 +167,8 @@ extern FILE * stderr;
 	-- but I already need files set up to require java.ffi.jni to get it
 	-- so *shrug* it is a triviality
 	-- but it would be nice to bootload just that directory...
-	local androidEnv = require 'android-setup'
+	-- now I'm doing this on the UI thread...
+	--local androidEnv = require 'android-setup'
 --do return end
 
 	--now ... try to run something in SDL+OpenGL

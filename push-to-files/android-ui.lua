@@ -53,7 +53,32 @@ extern FILE * stderr;
 
 	print'BEGIN android-ui.lua'
 
-	print('args', ...)
+	-- setup LUA_PATH and LUA_CPATH here
+	package.path = table.concat({
+		'./?.lua',
+		projectDir..'/?.lua',
+		projectDir..'/?/?.lua',
+	}, ';')
+	package.cpath = table.concat({
+		'./?.so',
+		projectDir..'/?.so',
+		projectDir..'/?/init.so',
+	}, ';')
+
+	ffi.cdef[[int setenv(const char*,const char*,int);]]
+	-- let subsequent invoked lua processes know where to find things
+	ffi.C.setenv('LUA_PATH', package.path, 1)
+	ffi.C.setenv('LUA_CPATH', package.cpath, 1)
+
+	--hot take: it should be "Android"
+	if ffi.os == 'Linux' then ffi.os = 'Android' end
+
+	print('android-ui run with:', ...)
+	local msg = ...
+	if msg == 'init' then
+		local androidEnv = require 'android-setup'
+	end
+
 end, function(err)
 	print(err, '\n', debug.traceback())
 end, ...)

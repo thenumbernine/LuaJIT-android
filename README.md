@@ -32,13 +32,15 @@ I've generated LuaJIT bindings to go with most POSIX functions of Termux's andro
 
 # under the hood
 
-It launches into LuaJIT just fine.
+First the Activity UI thread creates the UI Lua state and runs the `/data/data/io.github.thenumbernine.SDLLuaJIT/files/luajit-ui-main.lua` file's main method, with either of the messages: "init", "pause", "resume". (The file is only loaded into this Lua state once).
+
+Next the SDLMain thread launches into LuaJIT, basically the `luajit.c` CLI itself, and runs whatever arguments are provided in `/data/data/io.github.thenumbernine.SDLLuaJIT/files/luajit-args`.
 
 From there, LuaJIT can access any C function just fine.
 
-I have a simple function set up to save and relay the `JNIEnv`.
+The JNIEnv of the UI thread and of the SDLMain thread can be accessed via LuaJIT FFI.  My [lua-java](https://github.com/thenumbernine/lua-java) can then be used to do any sort of Java stuff from within LuaJIT.
 
-Next, using this library, I will use LuaJIT to access JNI to do JNI stuff.
+The two LuaJIT states can access and talk to one another using my [lua-lua](http://github.com/thenumbernine/lua-lua) LuaJIT module, and [lua-thread](https://github.com/thenumbernine/lua-thread) for synchronization.
 
 # TODO
 

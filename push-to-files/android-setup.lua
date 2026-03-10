@@ -27,10 +27,10 @@ local ffi = require 'ffi'
 local main = ffi.load'main'
 print('main', main)
 
-ffi.cdef[[JNIEnv * jniEnvSDLMain;]]
+ffi.cdef[[JNIEnv * jniEnvUI;]]
 local JNIEnv = require 'java.jnienv'
 local J = JNIEnv{
-	ptr = main.jniEnvSDLMain,
+	ptr = main.jniEnvUI,
 	usingAndroidJNI = true,
 }
 print('J', J)
@@ -195,20 +195,28 @@ startActivity(
 --]]
 -- [[ or make a new view?
 local activity = context:_cast'android.app.Activity'	-- because its a subclass, right?
-print('activity', activity)
 local LinearLayout = J.android.widget.LinearLayout
-assert(LinearLayout._exists)
+assert(LinearLayout._exists, "failed to find LinearLayout")
 local mainLayout = LinearLayout(activity)
 mainLayout:setOrientation(LinearLayout.VERTICAL)
 local ViewGroup = J.android.view.ViewGroup
-assert(ViewGroup._exists)
-local layoutParams = LinearLayout.LayoutParams(
+assert(ViewGroup._exists, "failed to find ViewGroup")
+mainLayout:setLayoutParams(LinearLayout.LayoutParams(
 	ViewGroup.LayoutParams.MATCH_PARENT,
 	ViewGroup.LayoutParams.MATCH_PARENT
-)
-mainLayout:setLayoutParams(layoutParams)
+))
 -- "JVM android.view.ViewRootImpl$CalledFromWrongThreadException: Only the original thread that created a view hierarchy can touch its views."
 activity:setContentView(mainLayout)
+
+local textView = J.android.widget.TextView(activity)
+textView:setLayoutParams(LinearLayout.LayoutParams(
+	ViewGroup.LayoutParams.WRAP_CONTENT,
+	ViewGroup.LayoutParams.WRAP_CONTENT
+))
+textView:setText("TESTING TESTING ONE TWO THREE")
+textView:setTextSize(20)
+textView:setPadding(10, 10, 10, 10)
+mainLayout:addView(textView)
 --]]
 
 return M
