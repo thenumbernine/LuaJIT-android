@@ -1,5 +1,11 @@
 package io.github.thenumbernine.LuaJIT;
 
+import java.io.File;
+import android.os.Bundle;
+import android.content.Intent;
+import android.content.res.Configuration;
+import android.view.KeyEvent;
+
 public class Activity extends android.app.Activity {
 	static {
 		System.loadLibrary("luajit");
@@ -94,12 +100,12 @@ public class Activity extends android.app.Activity {
 
 	public void luajitCall(String msg) {
 		if (L == 0L) {
-			File filesDir = getContext().getFilesDir();
+			File filesDir = getFilesDir();
 			L = nativeLuajitInit(filesDir.getAbsolutePath());
 		}
 		nativeLuajitCall(L, msg);
 	}
 
-	public static native long nativeLuajitInit(String wd);
-	public static native void nativeLuajitCall(long L);
+	public native long nativeLuajitInit(String wd);
+	public native void nativeLuajitCall(long L, String msg);
 }

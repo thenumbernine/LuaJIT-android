@@ -586,12 +586,15 @@ static int pmain(lua_State *L)
 
 
 JNIEnv * jniEnv = NULL;
+jobject androidActivity = NULL;
+
 JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitInit(
 	JNIEnv * jniEnv_,
-	jclass cl,
+	jobject obj,
 	jstring wd
-) { 
-	jniEnv = jniEnv_; 
+) {
+	jniEnv = jniEnv_;
+	androidActivity = obj;
 
 	// this doesn't/shouldn't block, or else it'll freeze the UI
 
@@ -602,7 +605,7 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 		}
 		jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, wd, wdstr);
 	}
-	
+
 	lua_State *L;
 	L = lua_open();
 	if (L == NULL) {
@@ -629,14 +632,17 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 
 JNIEXPORT void JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitCall(
 	JNIEnv * jniEnv_,
-	jclass cl,
+	jobject obj,
 	jlong _L,
 	jstring msg
 ) {
+	jniEnv = jniEnv_;
+	androidActivity = obj;
+
 	lua_State * L = (lua_State*)_L;
 	if (!L) return;
 	lua_getfield(L, LUA_REGISTRYINDEX, "main");
-	
+
 	char const * msgstr = jniEnv_[0]->GetStringUTFChars(jniEnv_, msg, NULL);
 	lua_pushstring(L, msgstr);
 	jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, msg, msgstr);

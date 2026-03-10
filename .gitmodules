@@ -1,3 +1,30 @@
 [submodule "app/src/main/cpp/luajit"]
 	path = app/src/main/cpp/luajit
 	url = https://github.com/LuaJIT/LuaJIT
+[submodule "app/src/main/assets/ext"]
+	path = app/src/main/assets/ext
+	url = https://github.com/thenumbernine/lua-ext
+[submodule "app/src/main/assets/java"]
+	path = app/src/main/assets/java
+	url = https://github.com/thenumbernine/lua-java
+[submodule "app/src/main/assets/lfs_ffi"]
+	path = app/src/main/assets/lfs_ffi
+	url = https://github.com/thenumbernine/luafilesystem
+[submodule "app/src/main/assets/ffi"]
+	path = app/src/main/assets/ffi
+	url = https://github.com/thenumbernine/lua-ffi-bindings
+[submodule "app/src/main/assets/template"]
+	path = app/src/main/assets/template
+	url = https://github.com/thenumbernine/lua-template
+[submodule "app/src/main/assets/struct"]
+	path = app/src/main/assets/struct
+	url = https://github.com/thenumbernine/struct-lua
+[submodule "app/src/main/assets/thread"]
+	path = app/src/main/assets/thread
+	url = https://github.com/thenumbernine/lua-thread
+[submodule "app/src/main/assets/lua"]
+	path = app/src/main/assets/lua
+	url = https://github.com/thenumbernine/lua-lua
+[submodule "app/src/main/assets/stl"]
+	path = app/src/main/assets/stl
+	url = https://github.com/thenumbernine/lua-stl
