@@ -666,7 +666,7 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 	lua_pushcfunction(L, java_isAssetPathDir);
 	lua_setfield(L, LUA_REGISTRYINDEX, "java_isAssetPathDir");
 
-	int status = luaL_loadfile(L, "init.lua");
+	int status = luaL_loadfile(L, "main.lua");
 	if (status == LUA_OK) {
 		lua_pushvalue(L, -1);
 		lua_setfield(L, LUA_REGISTRYINDEX, "main");
