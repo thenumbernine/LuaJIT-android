@@ -1,3 +1,0 @@
--- Android Termux has GLES by default
--- I bet there's a regular GL package for it though...
-return require 'gl.ffi.OpenGLES3'

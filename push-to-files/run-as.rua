@@ -1,3 +1,0 @@
-#!/usr/bin/env rua
-require 'config'
-os.exec('adb shell run-as '..pkgname..' '..table{...}:concat' ')

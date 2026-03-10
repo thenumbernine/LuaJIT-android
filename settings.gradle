@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SDL+LuaJIT Launcher"
+rootProject.name = "LuaJIT Launcher"
 include ':app'

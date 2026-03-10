@@ -1,6 +1,5 @@
 #include <jni.h>
 #include <android/log.h>
-//#include <SDL3/SDL_main.h>  // SDL__main?
 
 /*
 ** LuaJIT frontend. Runs commands, scripts, read-eval-print (REPL) etc.
@@ -585,61 +584,17 @@ static int pmain(lua_State *L)
 	return 0;
 }
 
-// Chris: handing this off to LuaJIT ffi.C ...
-JNIEnv * jniEnvSDLMain = NULL;
-JNIEXPORT void JNICALL Java_io_github_thenumbernine_SDLLuaJIT_SDLActivity_nativeSetJNIEnv(JNIEnv * jniEnv_) { jniEnvSDLMain = jniEnv_; }
 
-// this is from teh SDLMain thread
-// last arg is for chdir() then thrown away
-JNIEXPORT int SDL_main(
-	int argc,
-	char** argv
-) {
-	// Chris:
-	// make sure I am getting my arguments correctly
-	{
-		if (argc > 0) {
-			char const * wd = argv[argc - 1];
-			if (wd) chdir(wd);
-			--argc;
-		}
-
-		__android_log_print(ANDROID_LOG_INFO, "SDL", "LUAJIT");
-		__android_log_print(ANDROID_LOG_INFO, "SDL", "LUAJIT argc %d", argc);
-		for (int i = 0; i < argc; ++i) {
-			__android_log_print(ANDROID_LOG_INFO, "SDL", "LUAJIT argv[%d]: %s", i, argv[i] ? argv[i] : "(null)");
-		}
-	}
-
-	int status;
-	lua_State *L;
-	if (!argv[0]) argv = empty_argv; else if (argv[0][0]) progname = argv[0];
-	L = lua_open();
-	if (L == NULL) {
-		l_message("cannot create state: not enough memory");
-		return EXIT_FAILURE;
-	}
-	smain.argc = argc;
-	smain.argv = argv;
-	status = lua_cpcall(L, pmain, NULL);
-	report(L, status);
-	lua_close(L);
-	return (status || smain.status > 0) ? EXIT_FAILURE : EXIT_SUCCESS;
-}
-
-// and this is for the UI thread
-JNIEnv * jniEnvUI = NULL;
-JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_SDLLuaJIT_SDLActivity_nativeLuajitUIInit(
+JNIEnv * jniEnv = NULL;
+JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitInit(
 	JNIEnv * jniEnv_,
 	jclass cl,
 	jstring wd
 ) { 
-	jniEnvUI = jniEnv_; 
+	jniEnv = jniEnv_; 
 
-	// unlike above, this doesn't/shouldn't block, or else it'll freeze the UI
+	// this doesn't/shouldn't block, or else it'll freeze the UI
 
-	// Chris:
-	// make sure I am getting my arguments correctly
 	{
 		char const * wdstr = jniEnv_[0]->GetStringUTFChars(jniEnv_, wd, NULL);
 		if (wdstr) {
@@ -659,10 +614,10 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_SDLLuaJIT_SDLActivity_nativ
 	luaL_openlibs(L);
 	lua_gc(L, LUA_GCRESTART, -1);
 
-	int status = luaL_loadfile(L, "luajit-ui-main.lua");
+	int status = luaL_loadfile(L, "init.lua");
 	if (status == LUA_OK) {
 		lua_pushvalue(L, -1);
-		lua_setfield(L, LUA_REGISTRYINDEX, "ui_main");
+		lua_setfield(L, LUA_REGISTRYINDEX, "main");
 
 		lua_pushliteral(L, "init");
 		docall(L, 1, 1);
@@ -672,28 +627,20 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_SDLLuaJIT_SDLActivity_nativ
 	return (jlong)L;
 }
 
-JNIEXPORT void JNICALL Java_io_github_thenumbernine_SDLLuaJIT_SDLActivity_nativeLuajitUIResume(
+JNIEXPORT void JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitCall(
 	JNIEnv * jniEnv_,
 	jclass cl,
-	jlong _L
+	jlong _L,
+	jstring msg
 ) {
 	lua_State * L = (lua_State*)_L;
 	if (!L) return;
-	lua_getfield(L, LUA_REGISTRYINDEX, "ui_main");
-	lua_pushliteral(L, "resume");
-	docall(L, 1, 1);
-	report(L, LUA_OK);
-}
+	lua_getfield(L, LUA_REGISTRYINDEX, "main");
+	
+	char const * msgstr = jniEnv_[0]->GetStringUTFChars(jniEnv_, msg, NULL);
+	lua_pushstring(L, msgstr);
+	jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, msg, msgstr);
 
-JNIEXPORT void JNICALL Java_io_github_thenumbernine_SDLLuaJIT_SDLActivity_nativeLuajitUIPause(
-	JNIEnv * jniEnv_,
-	jclass cl,
-	jlong _L
-) {
-	lua_State * L = (lua_State*)_L;
-	if (!L) return;
-	lua_getfield(L, LUA_REGISTRYINDEX, "ui_main");
-	lua_pushliteral(L, "pause");
 	docall(L, 1, 1);
 	report(L, LUA_OK);
 }

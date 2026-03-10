@@ -1,4 +1,0 @@
-#!/usr/bin/env rua
-require 'config'
-local fn = assert(..., 'expected file')
-assert(os.exec('adb pull "'..projectdir..'/'..fn..'"'))

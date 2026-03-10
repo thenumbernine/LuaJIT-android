@@ -3,13 +3,13 @@ plugins {
 }
 
 android {
-	namespace 'io.github.thenumbernine.SDLLuaJIT'
+	namespace 'io.github.thenumbernine.LuaJIT'
 	compileSdk {
 		version = release(36)
 	}
 
 	defaultConfig {
-		applicationId "io.github.thenumbernine.SDLLuaJIT"
+		applicationId "io.github.thenumbernine.LuaJIT"
 		minSdk 24
 		targetSdk 36
 		versionCode 1
@@ -17,7 +17,7 @@ android {
 
 		testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
-		base.archivesName.set("SDLLuaJIT-$versionName")
+		base.archivesName.set("LuaJIT-$versionName")
 
 		externalNativeBuild {
 			cmake {

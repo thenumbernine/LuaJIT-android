@@ -11,31 +11,6 @@ cmake_minimum_required(VERSION 3.22.1)
 # build script scope).
 project("main")
 
-add_subdirectory(SDL)
-
-# Chris: this is copied from the SDL3 android-project example
-
-if(NOT TARGET SDL3::SDL3)
-    find_package(SDL3 CONFIG)
-endif()
-
-if(NOT TARGET SDL3::SDL3)
-    find_library(SDL3_LIBRARY NAMES "SDL3")
-    find_path(SDL3_INCLUDE_DIR NAMES "SDL3/SDL.h")
-    add_library(SDL3::SDL3 UNKNOWN IMPORTED)
-    set_property(TARGET SDL3::SDL3 PROPERTY IMPORTED_LOCATION "${SDL3_LIBRARY}")
-    set_property(TARGET SDL3::SDL3 PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${SDL3_INCLUDE_DIR}")
-endif()
-
-if(NOT TARGET SDL3::SDL3)
-    message(FATAL_ERROR "Cannot find SDL3.
-
-Possible ways to fix this:
-- Use a SDL3 Android aar archive, and configure gradle to use it: prefab is required.
-- Add add_subdirectory(path/to/SDL) to your CMake script, and make sure a vendored SDL is present there.
-")
-endif()
-
 # Chris: trying to add luajit
 #add_subdirectory(luajit)
 set(LUAJIT_LIBRARY ${CMAKE_CURRENT_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libluajit.so)
@@ -44,9 +19,6 @@ set_property(TARGET luajit PROPERTY IMPORTED_LOCATION ${LUAJIT_LIBRARY})
 
 # putting luajit per-arch include here for now
 include_directories(PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/${ANDROID_ABI})
-
-# Chris: trying to add include dir of SDL...
-include_directories(PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/SDL/include)
 
 
 # Creates and names a library, sets it as either STATIC
@@ -75,7 +47,6 @@ add_library(
 target_link_libraries(
     ${CMAKE_PROJECT_NAME}
     # List libraries link to the target library
-    SDL3::SDL3
     luajit
     android
     log

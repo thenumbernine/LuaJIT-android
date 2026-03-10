@@ -86,7 +86,7 @@
 		<meta-data android:name="SDL_ENV.SDL_ANDROID_TRAP_BACK_BUTTON" android:value="0"/>
 		 -->
 
-		<activity android:name="io.github.thenumbernine.SDLLuaJIT.SDLActivity"
+		<activity android:name="io.github.thenumbernine.LuaJIT.Activity"
 			android:label="@string/app_name"
 			android:alwaysRetainTaskState="true"
 			android:launchMode="singleInstance"
