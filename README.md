@@ -51,3 +51,7 @@ The two LuaJIT states can access and talk to one another using my [lua-lua](http
 	- 4) copy the dist package dir over to the /data/data/app/files/
 - add a text console output, for non-graphics scripts, pipe stdout/stderr into it, and only create the SDL surface upon SDL request.
 - builtin settings to edit the CLI args, option to disable for when using this to package specific apps.
+- add a new luajit package.loaders for loading files off the APK so I don't have to copy the whole apk files contents over and over again...
+- move the redirection of stdout into the java or luajit.c code and out of the luajit-lua code so it is only done once-per-process.
+- move the setting of env vars out of the java code and into the luajit-lua code.
+- maybe make a spinoff app that is this but without SDL side, so it is all 100% luajit... er 99% luajit and 1% minimal Android project files.
