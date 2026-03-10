@@ -133,4 +133,70 @@ public class SDLActivity extends org.libsdl.app.SDLActivity {
 	// maybe I can pass Java pointers back through JNI to LuaJIT ...
 	// there's already a "getContext()" in org.libsdl.app.SDLActivity ...
 	public static native void nativeSetJNIEnv();
+
+
+	/*
+	looks like SDL Android project runs the SDL stuff on one thread
+	and then ofc Android has its UI stuff for another thread
+	and Android complains if you touch the UI from another thread,
+	which means the SDLMain LuaJIT above cannot change Android,
+	unless I start up a new LuaJIT state here...
+	
+	hmm TODO how to keep the lua_State around even after this method returns?
+	I could wrap it in a Java object and pin it here ...
+	I mean, I could jsut cast its pointer to a jlong and just simply not clean it up ...
+	... until I feel like it ...
+	*/
+    
+	protected long luajitUIState = 0L;
+
+	protected void pauseNativeThread() {
+		// start UI thread LuaJIT
+		luajitUIPause();
+
+		super.pauseNativeThread();
+	}
+    
+	protected void resumeNativeThread() {
+		// start UI thread LuaJIT
+		luajitUIResume();
+
+		super.resumeNativeThread();
+	}
+    
+	@Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+		// start UI thread LuaJIT
+        if (hasFocus) {
+			luajitUIResume();
+		} else {
+			luajitUIPause();
+		}
+
+		super.onWindowFocusChanged(hasFocus);
+	}
+
+	public void luajitUIPause() {
+		if (luajitUIState != 0L) {
+			nativeLuajitUIPause(luajitUIState);
+		}
+	}
+
+	public void luajitUIResume() {
+		// TODO is there ever a way that the luajitUIState field retains value though the app dies?
+		// any auto-serialization being done by Android?
+		if (luajitUIState == 0L) {
+			File filesDir = getContext().getFilesDir();
+
+			luajitUIState = nativeLuajitUIInit(
+				filesDir.getAbsolutePath()
+			);
+		} else {
+			nativeLuajitUIResume(luajitUIState);
+		}
+	}
+
+	public static native long nativeLuajitUIInit(String wd);
+	public static native void nativeLuajitUIPause(long luajitUIState);
+	public static native void nativeLuajitUIResume(long luajitUIState);
 }
