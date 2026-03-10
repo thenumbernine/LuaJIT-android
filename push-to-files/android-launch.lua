@@ -30,11 +30,11 @@ xpcall(function()
 	local libDir = appFilesDir..'/lib'
 	-- in Termux I've got this set to $LUA_PROJECT_PATH env var,
 	-- but in JNI, no such variables, and barely even env var access to what is there.
-	--[[ running on sdcard
+	-- [[ running on sdcard
 	local projectDir = '/sdcard/Documents/Projects/lua'
 	local startDir = projectDir
 	--]]
-	-- [[ running on files/
+	--[[ running on files/
 	local projectDir = appFilesDir
 	local startDir = projectDir
 	--]]
@@ -67,6 +67,9 @@ extern FILE * stderr;
 	--]]
 
 	print'BEGIN android-launch.lua'
+
+	print(jit.version)
+	--require 'jit.dump' -- oops
 
 	-- setup LUA_PATH and LUA_CPATH here
 	package.path = table.concat({
@@ -158,11 +161,14 @@ extern FILE * stderr;
 	--f:close()
 	--do return end
 
+--require 'jit.dump'.on()
+
 	-- this gets us vars like appFilesDir
 	-- but I already need files set up to require java.ffi.jni to get it
 	-- so *shrug* it is a triviality
 	-- but it would be nice to bootload just that directory...
 	local androidEnv = require 'android-setup'
+--do return end
 
 	--now ... try to run something in SDL+OpenGL
 	local dir, run
@@ -174,7 +180,7 @@ extern FILE * stderr;
 	--dir,run='gl/tests','info.lua'							-- WORKS
 	--dir,run='gl/tests','test_es.lua'						-- WORKS
 	--dir,run,arg='gl/tests','test_geom.lua',{'maxTess=7'} 	-- WORKS.  auto detect maxTess would be nice tho...
-	dir,run='gl/tests','test_tex.lua' 					-- WORKS
+	--dir,run='gl/tests','test_tex.lua' 					-- WORKS
 	--dir,run='gl/tests','test_uniformblock.lua'			-- WORKS
 -- TODO imgui ui probably needs bigger to be able to touch anything
 	--dir,run='imgui/tests','demo.lua'						-- WORKS
@@ -182,6 +188,7 @@ extern FILE * stderr;
 	--dir,run='line-integral-convolution','run.lua'			-- got glCheckFramebufferStatus==0
 	--dir,run='rule110','rule110.lua'						-- WORKS
 	--dir,run='fibonacci-modulo','run.lua'					-- WORKS
+	--dir,run='force-directed-graph','run.lua'
 	--dir,run,arg='vk/tests','test.lua',{'dontRequireSamplerAnisotropy'} -- WORKS
 	--dir,run,arg='seashell','run.lua', {'usecache'}		-- WORKS but runs slow
 	--dir,run='audio/test','test.lua'						-- no errrors, and I don't hear anything...
@@ -212,7 +219,8 @@ extern FILE * stderr;
 	--dir,run='gravitational-waves','run.lua'					-- WORKS
 	--dir,run='pong','pong.lua'									-- WORKS
 	--dir,run='volume-renderer','test-mandel-julia.lua'			-- WORKS
-	--dir,run='dungeons-n-munchers','run.lua'						--  TODO update to gl3
+	--dir,run='dungeons-n-munchers','run.lua'					--  TODO update to gl3
+	--dir,run='wgpu/tests','test.lua'
 	--]]
 
 	if dir or run then
@@ -224,7 +232,7 @@ extern FILE * stderr;
 		chdir(assert(dir))
 
 -- debugging options:
---require 'gl.debug' -- doesn't work with GLES 33.0, works with GLES 3.2
+--require 'gl.debug' -- works with GLES 3.2, doesn't work with GLES 3.0
 --require 'vk.debug' -- doesn't work on android at the moment, i'm sure there is a way cuz Termux has a package for it
 --require 'ext.debug'('source:match"/'..dir:match'^[^/]*'..'/"')	-- ext.debug
 --debug.sethook(function() print(debug.traceback()) end, 'l')

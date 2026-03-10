@@ -24,12 +24,24 @@ TODO now that LuaJIT has Java access, I don't need to set the env vars anymore!
 require 'java.ffi.jni'	-- cdef for JNIEnv
 
 local ffi = require 'ffi'
-ffi.cdef[[JNIEnv * SDLLuaJIT_GetJNIEnv();]]
 local main = ffi.load'main'
 print('main', main)
 
-local J = require 'java.jnienv'{ptr=main.SDLLuaJIT_GetJNIEnv()}
+ffi.cdef[[JNIEnv * jniEnvSDLMain;]]
+local JNIEnv = require 'java.jnienv'
+local J = JNIEnv{
+	ptr = main.jniEnvSDLMain,
+	usingAndroidJNI = true,
+}
 print('J', J)
+package.loaded.java = J	-- make `require 'java'` return our Android JNIEnv
+
+--[[ mostly works. mostly.
+local path = require 'ext.path'
+path'java/tests/luaclass':cd()
+dofile'test.lua'
+do return end
+--]]
 
 -- alright at this point ...
 -- this is just as well 'main()'
@@ -40,7 +52,7 @@ print('J', J)
 -- now why did I even bother with this?
 -- because I wanted to access the assets/ folder
 local SDLActivity = J.org.libsdl.app.SDLActivity
-print('SDLActivity', SDLActivity)
+assert(SDLActivity._exists)
 print('verison', SDLActivity:nativeGetVersion())
 
 -- TODO better way to get our running app's activity?
@@ -48,11 +60,13 @@ local context = SDLActivity:getContext()
 print('context', context)
 
 local M = {}
+
 M.packageName = tostring(context:getPackageName())
 print('packageName', M.packageName)
 
-M.appFilesDir = context:getFilesDir():getAbsolutePath()
-print('appFilesDir', M.appFilesDir)
+local appFilesDir = context:getFilesDir():getAbsolutePath()
+M.appFilesDir = appFilesDir
+print('appFilesDir', appFilesDir)
 
 M.appResDir = context:getPackageResourcePath()
 print('appResDir', M.appResDir)
@@ -79,7 +93,7 @@ function M.copyAssetsToFiles()
 
 		local File = J.java.io.File
 		local FileOutputStream = J.java.io.FileOutputStream
-		
+
 		local function copyAssets(f)
 			local toPath = appFilesDir..'/'..f
 			local toFile = File(toPath)
@@ -125,5 +139,76 @@ print(f)--, 'is', is, is_close)
 	end
 end
 --]===]
+
+-- while we're here, can we do FFM?
+
+print('J:_version()', ('0x%x'):format(J:_version()))
+local props = J.System:getProperties()
+for key in props:keySet():_iter() do
+	print('', key, ('%q'):format(tostring(props:getProperty(key))))
+end
+-- iterator only had 3 props: java.io.tmpdir, http.agent, user.home
+
+print('java.version', J.System:getProperty'java.version')	-- 0
+print('java.specification.version', J.System:getProperty'java.specification.version')
+print('java.runtime.version', J.System:getProperty'java.runtime.version')
+print('os.version', J.System:getProperty'os.version')	-- 0
+print('java.vm.specification.version', J.System:getProperty'java.vm.specification.version')
+print('java.vm.version', J.System:getProperty'java.vm.version')
+print('java.class.version', J.System:getProperty'java.class.version')
+
+--[[ works
+assert(J.Runnable._exists)
+J.Runnable(function(this)
+	print('hello from within Lua') --this)
+end):run()
+do return end
+--]]
+
+--[[ works
+local NativeCallback = require 'java.nativecallback'(J)
+print('NativeCallback', NativeCallback)
+print('NativeCallback.run', NativeCallback.run)
+function func(arg)
+	print('hello from lua->java->lua!', arg)
+end
+closure = ffi.cast('void*(*)(void*)', func)
+-- hmm, callback not working yet
+--NativeCallback:run(ffi.cast('jlong', closure), nil)	-- ./java/jnienv.lua:502: JVM java.lang.VerifyError: Verifier rejected class io.github.thenumbernine.SDLLuaJIT.NativeCallback: void io.github.thenumbernine.SDLLuaJIT.NativeCallback.<init>(): [0xFFFFFFFF] invalid arg count (0) in non-range invoke (declaration of 'io.github.thenumbernine.SDLLuaJIT.NativeCallback' appears in /data/user/0/io.github.thenumbernine.SDLLuaJIT/Anonymous-DexFile@3943120431.jar)	
+--NativeCallback:run(ffi.cast('jlong', closure), NativeCallback.class)
+local run = NativeCallback._methods.run[1]
+--run(NativeCallback, ffi.cast('jlong', closure), J.Object())
+run(NativeCallback, J.Long:valueOf(ffi.cast('jlong', closure)), J.Object())
+--]]
+
+
+--[[ can I make a new Activity?
+local NewActivity = require 'java.luaclass'{
+	superClass = 'android.app.Activity',
+}
+startActivity(
+	J.android.content.Intent(
+		context? SDLActivity.class ?,--MainActivity.this,
+		NewActivity.class
+	)
+)
+--]]
+-- [[ or make a new view?
+local activity = context:_cast'android.app.Activity'	-- because its a subclass, right?
+print('activity', activity)
+local LinearLayout = J.android.widget.LinearLayout
+assert(LinearLayout._exists)
+local mainLayout = LinearLayout(activity)
+mainLayout:setOrientation(LinearLayout.VERTICAL)
+local ViewGroup = J.android.view.ViewGroup
+assert(ViewGroup._exists)
+local layoutParams = LinearLayout.LayoutParams(
+	ViewGroup.LayoutParams.MATCH_PARENT,
+	ViewGroup.LayoutParams.MATCH_PARENT
+)
+mainLayout:setLayoutParams(layoutParams)
+-- "JVM android.view.ViewRootImpl$CalledFromWrongThreadException: Only the original thread that created a view hierarchy can touch its views."
+activity:setContentView(mainLayout)
+--]]
 
 return M
