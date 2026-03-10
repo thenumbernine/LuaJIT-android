@@ -588,6 +588,48 @@ static int pmain(lua_State *L)
 JNIEnv * jniEnv = NULL;
 jobject androidActivity = NULL;
 
+static int java_isAssetPathDir(lua_State *L) {
+	if (!androidActivity) luaL_error(L, "androidActivity is uninitialized");
+	if (!lua_isstring(L, 1)) luaL_error(L, "expected string");
+	char const * path = lua_tostring(L, 1);
+
+	jclass activityClass = jniEnv[0]->GetObjectClass(jniEnv, androidActivity);
+	jmethodID method = jniEnv[0]->GetMethodID(jniEnv, activityClass, "isAssetPathDir", "(Ljava/lang/String;)Z");
+	if (!method) luaL_error(L, "failed to get method");
+
+	jstring pathStr = jniEnv[0]->NewStringUTF(jniEnv, path);
+	jboolean result = jniEnv[0]->CallBooleanMethod(jniEnv, androidActivity, method, pathStr);
+
+	lua_pushboolean(L, result);
+	return 1;
+}
+
+static int java_readAssetPath(lua_State *L) {
+	if (!androidActivity) luaL_error(L, "androidActivity is uninitialized");
+	if (!lua_isstring(L, 1)) luaL_error(L, "expected string");
+	char const * path = lua_tostring(L, 1);
+
+	jclass activityClass = jniEnv[0]->GetObjectClass(jniEnv, androidActivity);
+	jmethodID method = jniEnv[0]->GetMethodID(jniEnv, activityClass, "readAssetPath", "(Ljava/lang/String;)[B");
+	if (!method) luaL_error(L, "failed to get method");
+
+	jstring pathStr = jniEnv[0]->NewStringUTF(jniEnv, path);
+	jbyteArray bytes = jniEnv[0]->CallObjectMethod(jniEnv, androidActivity, method, pathStr);
+
+	if (!bytes) return 0;
+
+	jsize bytesLen = jniEnv[0]->GetArrayLength(jniEnv, bytes);
+
+	jbyte * bytesPtr = jniEnv[0]->GetByteArrayElements(jniEnv, bytes, NULL);
+	if (!bytesPtr) luaL_error(L, "GetByteArrayElements failed");
+
+	lua_pushlstring(L, (char const *)bytesPtr, bytesLen);
+
+	jniEnv[0]->ReleaseByteArrayElements(jniEnv, bytes, bytesPtr, 0);
+
+	return 1;
+}
+
 JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitInit(
 	JNIEnv * jniEnv_,
 	jobject obj,
@@ -616,6 +658,13 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 	lua_gc(L, LUA_GCSTOP, 0);
 	luaL_openlibs(L);
 	lua_gc(L, LUA_GCRESTART, -1);
+
+	// while we're here, let's make a function that calls into java and pulls down files from the apk
+	lua_pushcfunction(L, java_readAssetPath);
+	lua_setfield(L, LUA_REGISTRYINDEX, "java_readAssetPath");
+
+	lua_pushcfunction(L, java_isAssetPathDir);
+	lua_setfield(L, LUA_REGISTRYINDEX, "java_isAssetPathDir");
 
 	int status = luaL_loadfile(L, "init.lua");
 	if (status == LUA_OK) {

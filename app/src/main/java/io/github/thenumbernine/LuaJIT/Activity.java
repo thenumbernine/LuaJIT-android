@@ -1,6 +1,9 @@
 package io.github.thenumbernine.LuaJIT;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
 import android.os.Bundle;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -17,6 +20,29 @@ public class Activity extends android.app.Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+
+		// make sure main exists
+		try {
+			File filesDir = getFilesDir();
+			File mainFile = new File(filesDir, "main.lua");
+			if (!mainFile.exists()) {
+				InputStream is = getAssets().open("main.lua");
+				FileOutputStream os = new FileOutputStream(mainFile);
+
+				byte[] buf = new byte[1024];
+				int res = -1;
+				while ((res = is.read(buf)) > 0) {
+					os.write(buf, 0, res);
+				}
+
+				is.close();
+				os.flush();
+				os.close();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
 		luajitCall("onCreate");
 	}
 
@@ -25,19 +51,19 @@ public class Activity extends android.app.Activity {
 		super.onPause();
 		luajitCall("onPause");
 	}
-   
+
    	@Override
 	protected void onResume() {
 		super.onResume();
 		luajitCall("onResume");
 	}
-  
+
 	@Override
 	protected void onStart() {
 		super.onStart();
 		luajitCall("onStart");
 	}
-   
+
    	@Override
 	protected void onStop() {
 		super.onStop();
@@ -49,7 +75,7 @@ public class Activity extends android.app.Activity {
 		luajitCall("onDestroy");
 		super.onDestroy();
 	}
-    
+
 	@Override
     public void onWindowFocusChanged(boolean hasFocus) {
         if (hasFocus) {
@@ -60,7 +86,7 @@ public class Activity extends android.app.Activity {
 
 		super.onWindowFocusChanged(hasFocus);
 	}
-    
+
 	@Override
     public void onTrimMemory(int level) {
 		luajitCall("onTrimMemory");
@@ -72,26 +98,26 @@ public class Activity extends android.app.Activity {
 		luajitCall("onConfigurationChanged");
 		super.onConfigurationChanged(newConfig);
 	}
-    
+
 
 	@Override
     public void onBackPressed() {
 		luajitCall("onBackPressed");
 		super.onBackPressed();
 	}
-    
+
 	@Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		luajitCall("onActivityResult");
         super.onActivityResult(requestCode, resultCode, data);
 	}
-    
+
 	@Override
     public boolean dispatchKeyEvent(KeyEvent event) {
 		luajitCall("dispatchKeyEvent");
 		return super.dispatchKeyEvent(event);
 	}
-    
+
 	@Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
 		luajitCall("onRequestPermissionsResult");
@@ -108,4 +134,19 @@ public class Activity extends android.app.Activity {
 
 	public native long nativeLuajitInit(String wd);
 	public native void nativeLuajitCall(long L, String msg);
+
+	public boolean isAssetPathDir(String path) throws IOException {
+		String[] list = getAssets().list(path);
+		return list.length > 0;
+	}
+
+	public byte[] readAssetPath(String path) throws IOException {
+		String[] list = getAssets().list(path);
+		if (list.length != 0) {
+			return String.join("\n", list).getBytes();
+		} else {
+			InputStream is = getAssets().open(path);
+			return is.readAllBytes();
+		}
+	}
 }

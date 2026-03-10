@@ -1,6 +1,18 @@
 xpcall(function(...)
 	local ffi = require 'ffi'
 
+
+	-- chdir to our lua projects root
+	ffi.cdef[[int chdir(const char *path);]]
+	local function chdir(s)
+		local res = ffi.C.chdir((assert(s)))
+		assert(res==0, 'chdir '..tostring(s)..' failed')
+	end
+
+	local projectDir = '/sdcard/Documents/Projects/lua'
+	chdir(projectDir)
+
+
 	-- redirect stdout and stderr to ./out.txt
 	ffi.cdef[[
 struct FILE;
@@ -31,13 +43,14 @@ extern FILE * stderr;
 	--hot take: it should be "Android"
 	if ffi.os == 'Linux' then ffi.os = 'Android' end
 
+	-- TODO here ... setup the package.loader from the luajit -> java functions
+
 
 	print('android main run with:', ...)
 	local msg = ...
 	if msg == 'init' then
-		local androidEnv = require 'android-setup'
+		--local androidEnv = require 'android-setup'
 	end
-
 end, function(err)
 	print(err, '\n', debug.traceback())
 end, ...)
