@@ -1,7 +1,6 @@
 xpcall(function(...)
 	local ffi = require 'ffi'
 
-
 	-- chdir to our lua projects root
 	ffi.cdef[[int chdir(const char *path);]]
 	local function chdir(s)
@@ -11,7 +10,6 @@ xpcall(function(...)
 
 	local projectDir = '/sdcard/Documents/Projects/lua'
 	chdir(projectDir)
-
 
 	-- redirect stdout and stderr to ./out.txt
 	ffi.cdef[[
@@ -44,7 +42,7 @@ extern FILE * stderr;
 	if ffi.os == 'Linux' then ffi.os = 'Android' end
 
 	-- TODO here ... setup the package.loader from the luajit -> java functions
-
+	assert(loadfile'luajit-android.lua')(...)
 
 	print('android main run with:', ...)
 	local msg = ...
