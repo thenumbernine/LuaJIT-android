@@ -99,8 +99,13 @@ static void print_usage(void)
 
 static void l_message(const char *msg)
 {
-	if (progname) { fputs(progname, stderr); fputc(':', stderr); fputc(' ', stderr); }
-	fputs(msg, stderr); fputc('\n', stderr);
+	if (progname) {
+		fputs(progname, stderr);
+		fputc(':', stderr);
+		fputc(' ', stderr);
+	}
+	fputs(msg, stderr);
+	fputc('\n', stderr);
 	fflush(stderr);
 }
 
@@ -629,6 +634,44 @@ static int java_readAssetPath(lua_State *L) {
 	return 1;
 }
 
+static int androidLuajitInit(lua_State *L) {
+	struct Smain *s = &smain;
+	globalL = L;
+
+	lua_gc(L, LUA_GCSTOP, 0);
+	luaL_openlibs(L);
+	lua_gc(L, LUA_GCRESTART, -1);
+
+	// change ffi.os to Android
+	//dolibrary clears the result so...
+	lua_getglobal(L, "require");
+	lua_pushstring(L, "ffi");
+	s->status = docall(L, 1, 0);
+	if (s->status != LUA_OK) return 0;
+
+	lua_pushliteral(L, "Android");
+	lua_setfield(L, -2, "os");		// THIS FAILS
+	lua_pop(L, 1);
+
+	// while we're here, let's make a function that calls into java and pulls down files from the apk
+	lua_pushcfunction(L, java_readAssetPath);
+	lua_setfield(L, LUA_REGISTRYINDEX, "java_readAssetPath");
+
+	lua_pushcfunction(L, java_isAssetPathDir);
+	lua_setfield(L, LUA_REGISTRYINDEX, "java_isAssetPathDir");
+
+	s->status = luaL_loadfile(L, "main.lua");
+	if (s->status != LUA_OK) return 0;
+
+	lua_pushvalue(L, -1);
+	lua_setfield(L, LUA_REGISTRYINDEX, "main");
+
+	lua_pushliteral(L, "init");
+	docall(L, 1, 1);
+
+	return 0;
+}
+
 JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitInit(
 	JNIEnv * jniEnv_,
 	jobject obj,
@@ -639,12 +682,40 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 
 	// this doesn't/shouldn't block, or else it'll freeze the UI
 
+	//chdir to our /data/data/package folder
 	{
 		char const * wdstr = jniEnv_[0]->GetStringUTFChars(jniEnv_, wd, NULL);
 		if (wdstr) {
 			chdir(wdstr);
 		}
 		jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, wd, wdstr);
+	}
+
+	/*
+	TODO
+	I would like to redirect output somewhere I can see it besides bloated logcat
+	and besides a file in the super super secret impossible-to-access /data/data/package folder.
+	In fact, preference would be to a buffered location that this app itself can read, display, clear, etc.
+	Hmm maybe I'll settle with here for now.
+	Be sure to do this before creating the Lua state (so it uses the correct stdout).
+	*/
+	{
+#if 0	// using two separate files for stdout and stderr:
+		freopen("out.txt", "w+", stdout);
+		freopen("err.txt", "w+", stderr);
+#else	// using one file:
+		if (freopen("out.txt", "w+", stdout) == NULL) {
+			l_message("freopen failed");
+			return 0;
+		}
+
+		if (dup2(fileno(stdout), fileno(stderr)) == -1) {
+			l_message("dup2 stderr failed");
+			return 0;
+		}
+#endif
+		setvbuf(stdout, NULL, _IONBF, 0);
+		setvbuf(stderr, NULL, _IONBF, 0);
 	}
 
 	lua_State *L;
@@ -654,25 +725,7 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 		return 0;
 	}
 
-	lua_gc(L, LUA_GCSTOP, 0);
-	luaL_openlibs(L);
-	lua_gc(L, LUA_GCRESTART, -1);
-
-	// while we're here, let's make a function that calls into java and pulls down files from the apk
-	lua_pushcfunction(L, java_readAssetPath);
-	lua_setfield(L, LUA_REGISTRYINDEX, "java_readAssetPath");
-
-	lua_pushcfunction(L, java_isAssetPathDir);
-	lua_setfield(L, LUA_REGISTRYINDEX, "java_isAssetPathDir");
-
-	int status = luaL_loadfile(L, "main.lua");
-	if (status == LUA_OK) {
-		lua_pushvalue(L, -1);
-		lua_setfield(L, LUA_REGISTRYINDEX, "main");
-
-		lua_pushliteral(L, "init");
-		docall(L, 1, 1);
-	}
+	int status = lua_cpcall(L, androidLuajitInit, NULL);
 	report(L, status);
 
 	return (jlong)L;
@@ -695,6 +748,6 @@ JNIEXPORT void JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajit
 	lua_pushstring(L, msgstr);
 	jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, msg, msgstr);
 
-	docall(L, 1, 1);
-	report(L, LUA_OK);
+	int status = docall(L, 1, 1);
+	report(L, status);
 }
