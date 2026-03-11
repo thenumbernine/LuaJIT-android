@@ -615,7 +615,6 @@ static int java_readAssetPath(lua_State *L) {
 
 	jstring pathStr = jniEnv[0]->NewStringUTF(jniEnv, path);
 	jbyteArray bytes = jniEnv[0]->CallObjectMethod(jniEnv, androidActivity, method, pathStr);
-
 	if (!bytes) return 0;
 
 	jsize bytesLen = jniEnv[0]->GetArrayLength(jniEnv, bytes);

@@ -2,6 +2,7 @@ package io.github.thenumbernine.LuaJIT;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import android.os.Bundle;
@@ -135,18 +136,37 @@ public class Activity extends android.app.Activity {
 	public native long nativeLuajitInit(String wd);
 	public native void nativeLuajitCall(long L, String msg);
 
-	public boolean isAssetPathDir(String path) throws IOException {
-		String[] list = getAssets().list(path);
-		return list.length > 0;
+	public boolean isAssetPathDir(String path) {
+		try {
+			String[] list = getAssets().list(path);
+			return list.length > 0;
+		} catch (IOException e) {}
+		return false;
 	}
 
-	public byte[] readAssetPath(String path) throws IOException {
-		String[] list = getAssets().list(path);
-		if (list.length != 0) {
-			return String.join("\n", list).getBytes();
-		} else {
-			InputStream is = getAssets().open(path);
-			return is.readAllBytes();
-		}
+	public byte[] readAssetPath(String path) {
+		try {
+			String[] list = getAssets().list(path);
+			if (list.length != 0) {
+				return String.join("\n", list).getBytes();
+			} else {
+				InputStream is = getAssets().open(path);
+
+				/* doesn't work because Android is retarded
+				return is.readAllBytes();
+				*/
+				/**/
+				ByteArrayOutputStream os = new ByteArrayOutputStream();
+				byte[] buf = new byte[16384];
+				int res = -1;
+				while ((res = is.read(buf)) > 0) {
+					os.write(buf, 0, res);
+				}
+				is.close();
+				return os.toByteArray();
+				/**/
+			}
+		} catch (IOException e) {}
+		return null;
 	}
 }
