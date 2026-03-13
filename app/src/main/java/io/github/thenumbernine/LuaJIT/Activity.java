@@ -6,9 +6,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.view.KeyEvent;
+import android.view.Menu;
 
 public class Activity extends android.app.Activity {
 	static {
@@ -20,121 +22,132 @@ public class Activity extends android.app.Activity {
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
+		luajitCall("onCreate", savedInstanceState);
+	}
 
-		// make sure main exists
-		try {
-			File filesDir = getFilesDir();
-			File mainFile = new File(filesDir, "main.lua");
-			if (!mainFile.exists()) {
-				InputStream is = getAssets().open("main.lua");
-				FileOutputStream os = new FileOutputStream(mainFile);
+	@Override
+	protected void onSaveInstanceState(Bundle outState) {
+		luajitCall("onSaveInstanceState", outState);
+	}
 
-				byte[] buf = new byte[1024];
-				int res = -1;
-				while ((res = is.read(buf)) > 0) {
-					os.write(buf, 0, res);
-				}
-
-				is.close();
-				os.flush();
-				os.close();
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		luajitCall("onCreate");
+	@Override
+	public void onRestoreInstanceState(Bundle outState, PersistableBundle persistentState) {
+		luajitCall("onRestoreInstanceState", outState, persistentState);
 	}
 
 	@Override
 	protected void onPause() {
-		super.onPause();
 		luajitCall("onPause");
 	}
 
    	@Override
 	protected void onResume() {
-		super.onResume();
 		luajitCall("onResume");
 	}
 
 	@Override
 	protected void onStart() {
-		super.onStart();
 		luajitCall("onStart");
 	}
 
    	@Override
 	protected void onStop() {
-		super.onStop();
 		luajitCall("onStop");
+	}
+
+	@Override
+	protected void onRestart() {
+		luajitCall("onRestart");
 	}
 
 	@Override
     protected void onDestroy() {
 		luajitCall("onDestroy");
-		super.onDestroy();
 	}
 
 	@Override
     public void onWindowFocusChanged(boolean hasFocus) {
-        if (hasFocus) {
-			luajitCall("onFocus");
-		} else {
-			luajitCall("onBlur");
-		}
-
-		super.onWindowFocusChanged(hasFocus);
+		luajitCall("onWindowFocusChanged", hasFocus);
 	}
 
 	@Override
     public void onTrimMemory(int level) {
-		luajitCall("onTrimMemory");
-		super.onTrimMemory(level);
+		luajitCall("onTrimMemory", level);
 	}
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
-		luajitCall("onConfigurationChanged");
-		super.onConfigurationChanged(newConfig);
+		luajitCall("onConfigurationChanged", newConfig);
 	}
 
 
 	@Override
     public void onBackPressed() {
 		luajitCall("onBackPressed");
-		super.onBackPressed();
 	}
 
 	@Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-		luajitCall("onActivityResult");
-        super.onActivityResult(requestCode, resultCode, data);
+		luajitCall("onActivityResult", requestCode, resultCode, data);
 	}
 
 	@Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-		luajitCall("dispatchKeyEvent");
-		return super.dispatchKeyEvent(event);
+		return (Boolean)luajitCall("dispatchKeyEvent", event);
 	}
 
 	@Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-		luajitCall("onRequestPermissionsResult");
-		super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+		luajitCall("onRequestPermissionsResult", requestCode, permissions, grantResults);
 	}
 
-	public void luajitCall(String msg) {
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		return (Boolean)luajitCall("onCreateOptionsMenu", menu);
+	}
+
+	@Override
+	public boolean onCreatePanelMenu(int featureId, Menu menu) {
+		return (Boolean)luajitCall("onCreatePanelMenu", featureId, menu);
+	}
+
+	// the luajit<->java bootstrap interaction
+	// this would be a million times easier if I could provide a class to the AndroidManifest via function instead of via xml text...
+
+	public Object luajitCall(String msg, Object... args) {
 		if (L == 0L) {
 			File filesDir = getFilesDir();
+
+			// make sure main.lua exists
+			try {
+				File mainFile = new File(filesDir, "main.lua");
+				if (!mainFile.exists()) {
+					InputStream is = getAssets().open("main.lua");
+					FileOutputStream os = new FileOutputStream(mainFile);
+
+					byte[] buf = new byte[16384];
+					int res = -1;
+					while ((res = is.read(buf)) > 0) {
+						os.write(buf, 0, res);
+					}
+
+					is.close();
+					os.flush();
+					os.close();
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+
 			L = nativeLuajitInit(filesDir.getAbsolutePath());
 		}
-		nativeLuajitCall(L, msg);
+		return nativeLuajitCall(L, msg, args);
 	}
 
 	public native long nativeLuajitInit(String wd);
-	public native void nativeLuajitCall(long L, String msg);
+	public native Object nativeLuajitCall(long L, String msg, Object... args);
+
+	// api used by lua for loading bootstrap classes from assets folder:
 
 	public boolean isAssetPathDir(String path) {
 		try {

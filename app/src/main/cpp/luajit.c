@@ -650,8 +650,21 @@ static int androidLuajitInit(lua_State *L) {
 	if (s->status != LUA_OK) return 0;
 
 	lua_pushliteral(L, "Android");
-	lua_setfield(L, -2, "os");		// THIS FAILS
-	lua_pop(L, 1);
+	lua_setfield(L, -2, "os");
+
+	lua_getfield(L, -1, "typeof");
+	lua_pushliteral(L, "void*");
+	s->status = docall(L, 1, 1);	// ffi.typeof'void*' is on the stack
+	if (s->status != LUA_OK) return 0;
+	lua_setfield(L, LUA_REGISTRYINDEX, "void*");
+
+	lua_getfield(L, -1, "typeof");
+	lua_pushliteral(L, "uintptr_t");
+	s->status = docall(L, 1, 1);	// ffi.typeof'uintptr_t' is on the stack
+	if (s->status != LUA_OK) return 0;
+	lua_setfield(L, LUA_REGISTRYINDEX, "uintptr_t");
+
+	lua_pop(L, 1);				// pop ffi
 
 	// while we're here, let's make a function that calls into java and pulls down files from the apk
 	lua_pushcfunction(L, java_readAssetPath);
@@ -731,23 +744,60 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 	return (jlong)L;
 }
 
-JNIEXPORT void JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitCall(
+JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitCall(
 	JNIEnv * jniEnv_,
 	jobject obj,
 	jlong _L,
-	jstring msg
+	jstring msg,
+	jobjectArray args
 ) {
+	int status;
+
 	jniEnv = jniEnv_;
 	androidActivity = obj;
 
 	lua_State * L = (lua_State*)_L;
-	if (!L) return;
+	if (!L) return NULL;
 	lua_getfield(L, LUA_REGISTRYINDEX, "main");
 
 	char const * msgstr = jniEnv_[0]->GetStringUTFChars(jniEnv_, msg, NULL);
 	lua_pushstring(L, msgstr);
 	jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, msg, msgstr);
 
-	int status = docall(L, 1, 1);
-	report(L, status);
+#if 0	// TODO push this as cdata void* instead of lightuserdata ...
+	lua_pushlightuserdata(L, args);
+#else
+	// TODO regsitry store this as voidptr or something
+	lua_getfield(L, LUA_REGISTRYINDEX, "void*");
+	lua_pushlightuserdata(L, args);
+	status = docall(L, 1, 1);		// ffi.typeof'void*'(jobjectArray args)
+	if (status != LUA_OK) {
+		report(L, status);
+		return NULL;
+	}
+#endif
+
+	status = docall(L, 2, 1);
+	if (status != LUA_OK) {
+		report(L, status);
+		return NULL;
+	}
+
+	// this gets a cdata, so ...
+	// first cast it to uintptr_t (otherwise tonumber will fail)
+	lua_getfield(L, LUA_REGISTRYINDEX, "uintptr_t");		// number, uintptr_t
+	lua_insert(L, -2);										// uintptr_t, number
+	status = docall(L, 1, 1);								// uintptr_t-value
+	if (status != LUA_OK) {
+		report(L, status);
+		return NULL;
+	}
+
+	void * result = lua_touserdata(L, -1);
+	if (!result) return NULL;
+
+	void * objres = ((void**)result)[0];	//right? (just a guess)
+	lua_pop(L, 1);
+
+	return objres;
 }

@@ -50,9 +50,9 @@
 	<!-- Allow downloading to the external storage on Android 5.1 and older -->
 	<!-- <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="22" /> -->
 	<!-- Chris: these don't work.
+	-->
 	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-	-->
 	<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
 
