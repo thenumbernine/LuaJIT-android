@@ -638,32 +638,22 @@ static int androidLuajitInit(lua_State *L) {
 	struct Smain *s = &smain;
 	globalL = L;
 
-printf("%s:%d\n", __FILE__, __LINE__);
 	lua_gc(L, LUA_GCSTOP, 0);
-printf("%s:%d\n", __FILE__, __LINE__);
 	luaL_openlibs(L);				//
-printf("%s:%d\n", __FILE__, __LINE__);
 	lua_gc(L, LUA_GCRESTART, -1);
-printf("%s:%d\n", __FILE__, __LINE__);
 
 	// change ffi.os to Android
 	//dolibrary clears the result so...
 	lua_getglobal(L, "require");	// require
-printf("%s:%d\n", __FILE__, __LINE__);
 	lua_pushstring(L, "ffi");		// require ffi
-printf("%s:%d\n", __FILE__, __LINE__);
 	s->status = docall(L, 1, 1);	// ffi
-printf("%s:%d\n", __FILE__, __LINE__);
 	if (s->status != LUA_OK) {
 		report(L, s->status);
 		return 0;
 	}
-printf("%s:%d\n", __FILE__, __LINE__);
 
 	lua_pushliteral(L, "Android");	// ffi Android
-printf("%s:%d\n", __FILE__, __LINE__);
 	lua_setfield(L, -2, "os");		// ffi
-printf("%s:%d\n", __FILE__, __LINE__);
 
 #if 0
 	lua_getfield(L, -1, "typeof");
@@ -680,61 +670,37 @@ printf("%s:%d\n", __FILE__, __LINE__);
 #endif
 
 	lua_pop(L, 1);					//
-printf("%s:%d\n", __FILE__, __LINE__);
 
 	// while we're here, let's make a function that calls into java and pulls down files from the apk
 	lua_pushcfunction(L, java_readAssetPath);		// java_readAssetPath
-printf("%s:%d\n", __FILE__, __LINE__);
 	lua_setfield(L, LUA_REGISTRYINDEX, "java_readAssetPath");
-printf("%s:%d\n", __FILE__, __LINE__);
 
 	lua_pushcfunction(L, java_isAssetPathDir);		// java_isAssetPathDir
-printf("%s:%d\n", __FILE__, __LINE__);
 	lua_setfield(L, LUA_REGISTRYINDEX, "java_isAssetPathDir");
-printf("%s:%d\n", __FILE__, __LINE__);
 
 	s->status = luaL_loadfile(L, "main.lua");		// main.lua's callback
-printf("%s:%d\n", __FILE__, __LINE__);
 	if (s->status != LUA_OK) {
 		report(L, s->status);
 		return 0;
 	}
-printf("%s:%d\n", __FILE__, __LINE__);
 
 	// call the loaded function, expect it to return our per-method callback
 	s->status = docall(L, 0, 1);				// main.lua's result
 printf("main.lua compiled with this on top: %s\n", luaL_typename(L, -1));
-printf("%s:%d\n", __FILE__, __LINE__);
 	if (s->status != LUA_OK) {
 		report(L, s->status);
 		return 0;
 	}
-printf("%s:%d\n", __FILE__, __LINE__);
 
 	int functype = lua_type(L, -1);
-printf("%s:%d\n", __FILE__, __LINE__);
 	if (functype != LUA_TFUNCTION) {
-printf("%s:%d\n", __FILE__, __LINE__);
 		luaL_error(L, "main.lua callback needs to return a function, got %s", lua_typename(L, functype));
 	}
 
 	// store the callback somewhere
-	lua_pushvalue(L, -1);						// main
-printf("%s:%d\n", __FILE__, __LINE__);
+	//lua_pushvalue(L, -1);						// main
 	lua_setfield(L, LUA_REGISTRYINDEX, "main");
-printf("%s:%d\n", __FILE__, __LINE__);
 
-	// call the callback with 'init'
-	lua_pushliteral(L, "init");
-printf("%s:%d\n", __FILE__, __LINE__);
-	s->status = docall(L, 1, 0);
-printf("%s:%d\n", __FILE__, __LINE__);
-	if (s->status != LUA_OK) {
-		report(L, s->status);
-		return 0;
-	}
-
-printf("%s:%d\n", __FILE__, __LINE__);
 	return 0;
 }
 
