@@ -133,7 +133,7 @@ static int traceback(lua_State *L)
 	return 1;
 }
 
-static int docall(lua_State *L, int narg, int clear)
+static int docall(lua_State *L, int narg, int nret)
 {
 	int status;
 	int base = lua_gettop(L) - narg;  /* function index */
@@ -142,7 +142,7 @@ static int docall(lua_State *L, int narg, int clear)
 #if !LJ_TARGET_CONSOLE
 	signal_set(SIGINT, laction);
 #endif
-	status = lua_pcall(L, narg, (clear ? 0 : LUA_MULTRET), base);
+	status = lua_pcall(L, narg, nret, base);
 #if !LJ_TARGET_CONSOLE
 	signal_set(SIGINT, SIG_DFL);
 #endif
@@ -190,13 +190,13 @@ static void createargtable(lua_State *L, char **argv, int argc, int argf)
 
 static int dofile(lua_State *L, const char *name)
 {
-	int status = luaL_loadfile(L, name) || docall(L, 0, 1);
+	int status = luaL_loadfile(L, name) || docall(L, 0, 0);
 	return report(L, status);
 }
 
 static int dostring(lua_State *L, const char *s, const char *name)
 {
-	int status = luaL_loadbuffer(L, s, strlen(s), name) || docall(L, 0, 1);
+	int status = luaL_loadbuffer(L, s, strlen(s), name) || docall(L, 0, 0);
 	return report(L, status);
 }
 
@@ -204,7 +204,7 @@ static int dolibrary(lua_State *L, const char *name)
 {
 	lua_getglobal(L, "require");
 	lua_pushstring(L, name);
-	return report(L, docall(L, 1, 1));
+	return report(L, docall(L, 1, 0));
 }
 
 static void write_prompt(lua_State *L, int firstline)
@@ -274,7 +274,7 @@ static void dotty(lua_State *L)
 	const char *oldprogname = progname;
 	progname = NULL;
 	while ((status = loadline(L)) != -1) {
-		if (status == LUA_OK) status = docall(L, 0, 0);
+		if (status == LUA_OK) status = docall(L, 0, LUA_MULTRET);
 		report(L, status);
 		if (status == LUA_OK && lua_gettop(L) > 0) {  /* any result to print? */
 			lua_getglobal(L, "print");
@@ -312,7 +312,7 @@ static int handle_script(lua_State *L, char **argx)
 		} else {
 			lua_pop(L, 1);
 		}
-		status = docall(L, narg, 0);
+		status = docall(L, narg, LUA_MULTRET);
 	}
 	return report(L, status);
 }
@@ -638,20 +638,34 @@ static int androidLuajitInit(lua_State *L) {
 	struct Smain *s = &smain;
 	globalL = L;
 
+printf("%s:%d\n", __FILE__, __LINE__);
 	lua_gc(L, LUA_GCSTOP, 0);
-	luaL_openlibs(L);
+printf("%s:%d\n", __FILE__, __LINE__);
+	luaL_openlibs(L);				//
+printf("%s:%d\n", __FILE__, __LINE__);
 	lua_gc(L, LUA_GCRESTART, -1);
+printf("%s:%d\n", __FILE__, __LINE__);
 
 	// change ffi.os to Android
 	//dolibrary clears the result so...
-	lua_getglobal(L, "require");
-	lua_pushstring(L, "ffi");
-	s->status = docall(L, 1, 0);
-	if (s->status != LUA_OK) return 0;
+	lua_getglobal(L, "require");	// require
+printf("%s:%d\n", __FILE__, __LINE__);
+	lua_pushstring(L, "ffi");		// require ffi
+printf("%s:%d\n", __FILE__, __LINE__);
+	s->status = docall(L, 1, 1);	// ffi
+printf("%s:%d\n", __FILE__, __LINE__);
+	if (s->status != LUA_OK) {
+		report(L, s->status);
+		return 0;
+	}
+printf("%s:%d\n", __FILE__, __LINE__);
 
-	lua_pushliteral(L, "Android");
-	lua_setfield(L, -2, "os");
+	lua_pushliteral(L, "Android");	// ffi Android
+printf("%s:%d\n", __FILE__, __LINE__);
+	lua_setfield(L, -2, "os");		// ffi
+printf("%s:%d\n", __FILE__, __LINE__);
 
+#if 0
 	lua_getfield(L, -1, "typeof");
 	lua_pushliteral(L, "void*");
 	s->status = docall(L, 1, 1);	// ffi.typeof'void*' is on the stack
@@ -663,25 +677,64 @@ static int androidLuajitInit(lua_State *L) {
 	s->status = docall(L, 1, 1);	// ffi.typeof'uintptr_t' is on the stack
 	if (s->status != LUA_OK) return 0;
 	lua_setfield(L, LUA_REGISTRYINDEX, "uintptr_t");
+#endif
 
-	lua_pop(L, 1);				// pop ffi
+	lua_pop(L, 1);					//
+printf("%s:%d\n", __FILE__, __LINE__);
 
 	// while we're here, let's make a function that calls into java and pulls down files from the apk
-	lua_pushcfunction(L, java_readAssetPath);
+	lua_pushcfunction(L, java_readAssetPath);		// java_readAssetPath
+printf("%s:%d\n", __FILE__, __LINE__);
 	lua_setfield(L, LUA_REGISTRYINDEX, "java_readAssetPath");
+printf("%s:%d\n", __FILE__, __LINE__);
 
-	lua_pushcfunction(L, java_isAssetPathDir);
+	lua_pushcfunction(L, java_isAssetPathDir);		// java_isAssetPathDir
+printf("%s:%d\n", __FILE__, __LINE__);
 	lua_setfield(L, LUA_REGISTRYINDEX, "java_isAssetPathDir");
+printf("%s:%d\n", __FILE__, __LINE__);
 
-	s->status = luaL_loadfile(L, "main.lua");
-	if (s->status != LUA_OK) return 0;
+	s->status = luaL_loadfile(L, "main.lua");		// main.lua's callback
+printf("%s:%d\n", __FILE__, __LINE__);
+	if (s->status != LUA_OK) {
+		report(L, s->status);
+		return 0;
+	}
+printf("%s:%d\n", __FILE__, __LINE__);
 
-	lua_pushvalue(L, -1);
+	// call the loaded function, expect it to return our per-method callback
+	s->status = docall(L, 0, 1);				// main.lua's result
+printf("main.lua compiled with this on top: %s\n", luaL_typename(L, -1));
+printf("%s:%d\n", __FILE__, __LINE__);
+	if (s->status != LUA_OK) {
+		report(L, s->status);
+		return 0;
+	}
+printf("%s:%d\n", __FILE__, __LINE__);
+
+	int functype = lua_type(L, -1);
+printf("%s:%d\n", __FILE__, __LINE__);
+	if (functype != LUA_TFUNCTION) {
+printf("%s:%d\n", __FILE__, __LINE__);
+		luaL_error(L, "main.lua callback needs to return a function, got %s", lua_typename(L, functype));
+	}
+
+	// store the callback somewhere
+	lua_pushvalue(L, -1);						// main
+printf("%s:%d\n", __FILE__, __LINE__);
 	lua_setfield(L, LUA_REGISTRYINDEX, "main");
+printf("%s:%d\n", __FILE__, __LINE__);
 
+	// call the callback with 'init'
 	lua_pushliteral(L, "init");
-	docall(L, 1, 1);
+printf("%s:%d\n", __FILE__, __LINE__);
+	s->status = docall(L, 1, 0);
+printf("%s:%d\n", __FILE__, __LINE__);
+	if (s->status != LUA_OK) {
+		report(L, s->status);
+		return 0;
+	}
 
+printf("%s:%d\n", __FILE__, __LINE__);
 	return 0;
 }
 
@@ -691,6 +744,8 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 	jstring wd
 ) {
 	jniEnv = jniEnv_;
+	
+	// only used for java_readAssetPath / java_isAssetPathDir, i wanna replace this with a function arg
 	androidActivity = obj;
 
 	// this doesn't/shouldn't block, or else it'll freeze the UI
@@ -764,9 +819,12 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 	lua_pushstring(L, msgstr);
 	jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, msg, msgstr);
 
-#if 0	// TODO push this as cdata void* instead of lightuserdata ...
+#if 0
+	status = docall(L, 1, 1);
+#elif 1	// TODO push this as cdata void* instead of lightuserdata ...
 	lua_pushlightuserdata(L, args);
-#else
+	status = docall(L, 2, 1);
+#elif 0
 	// TODO regsitry store this as voidptr or something
 	lua_getfield(L, LUA_REGISTRYINDEX, "void*");
 	lua_pushlightuserdata(L, args);
@@ -775,9 +833,8 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 		report(L, status);
 		return NULL;
 	}
-#endif
-
 	status = docall(L, 2, 1);
+#endif
 	if (status != LUA_OK) {
 		report(L, status);
 		return NULL;
@@ -793,10 +850,11 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 		return NULL;
 	}
 
+	void * objres = NULL;
 	void * result = lua_touserdata(L, -1);
-	if (!result) return NULL;
-
-	void * objres = ((void**)result)[0];	//right? (just a guess)
+	if (result) { 
+		objres = ((void**)result)[0];	//right? (just a guess)
+	}
 	lua_pop(L, 1);
 
 	return objres;

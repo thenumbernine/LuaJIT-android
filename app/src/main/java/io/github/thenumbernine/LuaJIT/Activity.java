@@ -121,7 +121,8 @@ public class Activity extends android.app.Activity {
 			// make sure main.lua exists
 			try {
 				File mainFile = new File(filesDir, "main.lua");
-				if (!mainFile.exists()) {
+				//if (!mainFile.exists())	// I'm always overwriting it anyways...
+				{
 					InputStream is = getAssets().open("main.lua");
 					FileOutputStream os = new FileOutputStream(mainFile);
 
@@ -141,7 +142,7 @@ public class Activity extends android.app.Activity {
 
 			L = nativeLuajitInit(filesDir.getAbsolutePath());
 		}
-		return nativeLuajitCall(L, msg, args);
+		return nativeLuajitCall(L, msg, this, args);
 	}
 
 	public native long nativeLuajitInit(String wd);
