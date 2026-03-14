@@ -770,6 +770,7 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 	jobject obj,
 	jlong _L,
 	jstring msg,
+	jobject this,
 	jobjectArray args
 ) {
 	int status;
@@ -779,28 +780,16 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 
 	lua_State * L = (lua_State*)_L;
 	if (!L) return NULL;
-	lua_getfield(L, LUA_REGISTRYINDEX, "main");
+	lua_getfield(L, LUA_REGISTRYINDEX, "main");	// main
 
 	char const * msgstr = jniEnv_[0]->GetStringUTFChars(jniEnv_, msg, NULL);
-	lua_pushstring(L, msgstr);
+	lua_pushstring(L, msgstr);				// main, msg
 	jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, msg, msgstr);
 
-#if 0
-	status = docall(L, 1, 1);
-#elif 1	// TODO push this as cdata void* instead of lightuserdata ...
-	lua_pushlightuserdata(L, args);
-	status = docall(L, 2, 1);
-#elif 0
-	// TODO regsitry store this as voidptr or something
-	lua_getfield(L, LUA_REGISTRYINDEX, "void*");
-	lua_pushlightuserdata(L, args);
-	status = docall(L, 1, 1);		// ffi.typeof'void*'(jobjectArray args)
-	if (status != LUA_OK) {
-		report(L, status);
-		return NULL;
-	}
-	status = docall(L, 2, 1);
-#endif
+	lua_pushlightuserdata(L, this);			// main, msg, this
+	lua_pushlightuserdata(L, args);			// main, msg, this, args
+	status = docall(L, 3, 1);
+
 	if (status != LUA_OK) {
 		report(L, status);
 		return NULL;
