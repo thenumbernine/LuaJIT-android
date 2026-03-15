@@ -783,7 +783,6 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 
 	char const * msgstr = jniEnv_[0]->GetStringUTFChars(jniEnv_, msg, NULL);
 	lua_pushstring(L, msgstr);				// main, msg
-	jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, msg, msgstr);
 
 	lua_pushlightuserdata(L, this);			// main, msg, this
 	lua_pushlightuserdata(L, args);			// main, msg, this, args
@@ -794,6 +793,7 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 		return NULL;
 	}
 
+#if 0
 	// this gets a cdata, so ...
 	// first cast it to uintptr_t (otherwise tonumber will fail)
 	lua_getfield(L, LUA_REGISTRYINDEX, "uintptr_t");		// number, uintptr_t
@@ -803,8 +803,14 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 		report(L, status);
 		return NULL;
 	}
+#endif
 
-	jobject objres = (jobject)lua_touserdata(L, -1);
+	jobject objres = NULL;
+	if (!lua_isnil(L, -1)) {
+		objres = (jobject)lua_touserdata(L, -1);
+	}
 	lua_pop(L, 1);
+printf("JNI C: %s returning %p\n", msgstr, objres);
+	jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, msg, msgstr);
 	return objres;
 }
