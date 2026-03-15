@@ -3,8 +3,10 @@
 -- from there I will load more files from here
 -- and then write stupid android apps
 local ffi = require 'ffi'
-local J = require 'java'
 local assert = require 'ext.assert'
+local J = require 'java'
+local JavaCallResolve = require 'java.callresolve'
+local infoForPrims = require 'java.util'.infoForPrims
 
 local M = {}
 --print('_G='..tostring(_G)..', jniEnv='..tostring(J._ptr))
@@ -17,7 +19,7 @@ local function recastObj(obj)
 end
 local function recastObjs(...)
 	if select('#', ...) == 0 then return end
-	return recastObj(arg), recastObjs(select(2, ...))
+	return recastObj(...), recastObjs(select(2, ...))
 end
 
 local Intent = J.android.content.Intent
@@ -60,11 +62,6 @@ M.gridLayout = gridLayout
 	onBackPressed = function(activity, ...)
 		--activity.super:onBackPressed(...)
 		activity:finish()
-	end,
-
-	-- TODO why doesn't this work below?
-	onTrimMemory = function(activity, level)
-		return activity.super:onTrimMemory(level)
 	end,
 
 	onCreateOptionsMenu = function(activity, menu)
@@ -122,11 +119,6 @@ M.gridLayout = gridLayout
 			loadImagesFromDocument(pickedDir)
 		end
 	end,
-
-	-- TODO is this a boxed type issue?
-	onTrimMemory = function(activity, level)
-		activity.super:onTrimMemory(level:intValue())
-	end,
 }
 
 return function(methodName, activity, args)
@@ -144,17 +136,34 @@ end
 	local result
 
 	-- get the return type / what I'll need to cast this to
-	local method = require 'java.callresolve'.resolve(
+	local activityMethodsForName = Activity._methods[methodName]
+	-- [[
+	local method = JavaCallResolve.resolve(
 		methodName,
-		Activity._methods[methodName],
+		activityMethodsForName,
 		activity,
 		recastObjs(args:_unpack()))
+	--]]
 	if method == nil then
 		print("!!! WARNING !!! couldn't get activity method for "..methodName)
 		print('...based on args...')
+		print('#args', select('#', recastObjs(args:_unpack())))
 		for i=0,#args-1 do
 			print('arg['..i..'] =', (recastObj(args[i]) or {})._classpath)
 		end
+		for _,prim in ipairs(require 'java.util'.prims) do
+			local info = infoForPrims[prim]
+			print('', info.name..' <=> '..info.boxedType)
+		end
+
+		print('and options for Activity.'..methodName)
+		for _,option in ipairs(activityMethodsForName) do
+			print('', option._name, require 'ext.tolua'(option._sig), option._class)
+		end
+
+		-- it says it can convert, so why isn't it when picking the method signature for call resolve?
+		--print(J:_canConvertLuaToJavaArg(J.Boolean(true), 'boolean'))	-- true
+		--print(J:_canConvertLuaToJavaArg(recastObj(args[0]), activityMethodsForName[1]._sig[2]))	-- also true
 	end
 
 	-- TODO here now we might have to unbox primitives ...
@@ -170,7 +179,6 @@ end
 	-- now prepare the result for the JNI layer
 	if result == nil then return 0 end
 --DEBUG:print('java:', methodName, 'returning', result)
-	local infoForPrims = require 'java.util'.infoForPrims
 	local primInfo = method and infoForPrims[method._sig[1]]
 	if primInfo then
 		result = J[primInfo.boxedType](result)._ptr
