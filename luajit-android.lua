@@ -6,6 +6,13 @@ local ffi = require 'ffi'
 local J = require 'java'
 local pthread = require 'ffi.req' 'c.pthread'
 
+-- rebuild args cast to their instanciated class
+local function recastArgs(...)
+	if select('#', ...) == 0 then return end
+	local arg = ...
+	if arg ~= nil then arg = J:_fromJObject(arg._ptr) end
+	return arg, recastArgs(select(2, ...))
+end
 
 print(
 	'_G='..tostring(_G)
@@ -18,10 +25,7 @@ print(
 	-- in order of how Android handles it:
 local callbacks = {
 	onCreate = function(activity, ...)
-		print('onCreate', activity, ...)
 		activity.super:onCreate(...)
-		--activity.super.onCreate(activity, nil)
-		print'here'
 
 		local LinearLayout = J.android.widget.LinearLayout
 
@@ -57,7 +61,7 @@ local callbacks = {
 			LinearLayout.LayoutParams.MATCH_PARENT				-- android:layout_height
 		))
 		mainLayout:setGravity(J.android.view.Gravity.CENTER)	-- android:layout_gravity
-		
+
 		local textView = J.android.widget.TextView(activity)
 		mainLayout:addView(textView)
 		textView:setLayoutParams(LinearLayout.LayoutParams(
@@ -107,24 +111,13 @@ local callbacks = {
 		--activity:setTheme()
 		local materialContext = J.android.view.ContextThemeWrapper(
 			activity,
-			J.com.google.android.material.R.style.Theme_MaterialComponents_DayNight_NoActionBar
+			--J.com.google.android.material.R.style.Theme_MaterialComponents_DayNight_NoActionBar
+			J.androidx.appcompat.R.style.Theme_AppCompat_Light
 		)
 
 		local AppBarLayout = J.com.google.android.material.appbar.AppBarLayout
-		--local appBarLayout, msg, ex = AppBarLayout(activity)	-- req app theme to be Theme.AppCompat...
-		
-print('AppBarLayout', AppBarLayout)
-print('AppBarLayout ctors')
-for i,m in ipairs(AppBarLayout._methods['<init>']) do
-	print(i, require 'ext.tolua'(require 'ext.table'({}, m, {_env=false})))
-end
-print('materialContext', materialContext)
-		
-local ctor = require 'java.callresolve'.resolve('<init>', AppBarLayout._methods['<init>'], AppBarLayout, materialContext)
-print('call resolver chose ctor', require 'ext.tolua'(require 'ext.table'({}, ctor, {_env=false})))
-
-		local appBarLayout = assert(AppBarLayout(materialContext))
-print('appBarLayout', appBarLayout)
+		--local appBarLayout = assert(AppBarLayout(activity))	-- req app theme to be Theme.AppCompat...
+		local appBarLayout = assert(AppBarLayout(materialContext))	-- giving me the same error
 		appBarLayout:setLayoutParams(AppBarLayout.LayoutParams(
 			AppBarLayout.LayoutParams.MATCH_PARENT,
 			AppBarLayout.LayoutParams.WRAP_CONTENT
@@ -154,7 +147,7 @@ print('appBarLayout', appBarLayout)
 		--]]
 
 		appBarLayout:addView(toolbar)
-		
+
 		local nestedScrollView = J.androidx.core.widget.NestedScrollView(activity)
 		local CoordinatorLayout = J.androidx.coordinatorlayout.widget.CoordinatorLayout
 		local contentLayoutParams = CoordinatorLayout.LayoutParams(
@@ -174,13 +167,13 @@ print('appBarLayout', appBarLayout)
 		coordinatorLayout:addView(nestedScrollView)
 
 		activity:setContentView(coordinatorLayout)
-		
-	
+
+
 		local ImageView = J.android.widget.ImageView
 		local galleryPreview = ImageView(activity)
 		--galleryPreview:setImageResource(smoe placeholder in teh resource file)
 		galleryPreview:setScaleType(ImageView.ScaleType.CENTER_CROP)
-		
+
 		local galleryParams = AppBarLayout.LayoutParams(
 			AppBarLayout.LayoutParams.MATCH_PARENT,
 			TypedValue:applyDimension(TypedValue.COMPLEX_UNIT_DIP, 200, activity:getResources():getDisplayMetrics())
@@ -192,7 +185,7 @@ print('appBarLayout', appBarLayout)
 		galleryPreview:setLayoutParams(galleryParams)
 
 		appBarLayout:addView(galleryPreview)
-		
+
 		local recyclerView = J.androidx.recyclerview.widget.RecyclerView(activity)
 		--recyclerView:setLayoutManager(J.androidx.recyclerview.widget.LinearLayoutManager(activity))
 		local recyclerParams = CoordinatorLayout.LayoutParams(
@@ -202,16 +195,16 @@ print('appBarLayout', appBarLayout)
 		recyclerParams:setBehavior(AppBarLayout.ScrollingViewBehavior())
 		recyclerView:setLayoutParams(recyclerParams)
 		coordinatorLayout:addView(recyclerView)
-		
+
 		local numberOfColumns = 3
 		local gridLayoutManager = J.androidx.recyclerview.widget.GridLayoutManager(activity, numberOfColumns)
 		recyclerView:setLayoutManager(gridLayoutManager)
-		
+
 		--[=[ I can't find this class so
 		local spacingInPixels = TypedValue:applyDimension(TyepdValue.COMPLEX_UNIT_DIP, 8, activity:getResources():getDisplayMetrics())
 		recyclerView:addItemDecoration(GridSpacingItemDecoration(numberOfColumns, spacingInPixels))
 		--]=]
-		
+
 		local GalleryAdapter = require 'java.luaclass'{
 			env = J,
 			extends = RecyclerView.Adapter,
@@ -245,7 +238,7 @@ print('appBarLayout', appBarLayout)
 								imageView:requestLayout()
 							end
 						end)
-					
+
 						Glide:with(activity)
 						:load(imageUrls:get(position))
 						:placeholder(android.R.drawable.ic_menu_gallery)
@@ -271,7 +264,7 @@ print('appBarLayout', appBarLayout)
 
 		--]]
 	end,
-	
+
 	onBackPressed = function(activity, ...)
 		--activity.super:onBackPressed(...)
 		activity:finish()
@@ -281,13 +274,23 @@ print('appBarLayout', appBarLayout)
 return function(methodName, activity, args)
 	activity = J:_fromJObject(ffi.cast('jobject', activity))
 	args = J:_fromJObject(ffi.cast('jobject', args))
-
-	local handler = callbacks[methodName]
-	if handler then
-		handler(activity, args:_unpack()) 
+print()
+print(methodName, activity, args:_unpack())
+--[[
+print('arg classes:')
+for i=0,#args-1 do
+	local argi = args[i]
+	print(i, argi and J:_fromJObject(argi._ptr)._classpath or 'null')
+end
+--]]
+	local result
+	local callback = callbacks[methodName]
+	if callback then
+		result = callback(activity, args:_unpack())
 	else
-		return activity.super[methodName](activity, args:_unpack())
+		result = activity.super[methodName](activity, recastArgs(args:_unpack()))
 	end
 
-	collectgarbage()
+print('java:', methodName, 'returning', result)
+	return result
 end
