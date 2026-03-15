@@ -706,13 +706,13 @@ printf("main.lua compiled with this on top: %s\n", luaL_typename(L, -1));
 
 JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitInit(
 	JNIEnv * jniEnv_,
-	jobject obj,
+	jobject this,
 	jstring wd
 ) {
 	jniEnv = jniEnv_;
 	
 	// only used for java_readAssetPath / java_isAssetPathDir, i wanna replace this with a function arg
-	androidActivity = obj;
+	androidActivity = this;
 
 	// this doesn't/shouldn't block, or else it'll freeze the UI
 
@@ -767,16 +767,15 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 
 JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitCall(
 	JNIEnv * jniEnv_,
-	jobject obj,
+	jobject this,
 	jlong _L,
 	jstring msg,
-	jobject this,
 	jobjectArray args
 ) {
 	int status;
 
 	jniEnv = jniEnv_;
-	androidActivity = obj;
+	androidActivity = this;
 
 	lua_State * L = (lua_State*)_L;
 	if (!L) return NULL;
@@ -805,12 +804,7 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 		return NULL;
 	}
 
-	void * objres = NULL;
-	void * result = lua_touserdata(L, -1);
-	if (result) { 
-		objres = ((void**)result)[0];	//right? (just a guess)
-	}
+	jobject objres = (jobject)lua_touserdata(L, -1);
 	lua_pop(L, 1);
-
 	return objres;
 }

@@ -142,11 +142,11 @@ public class Activity extends android.app.Activity {
 
 			L = nativeLuajitInit(filesDir.getAbsolutePath());
 		}
-		return nativeLuajitCall(L, msg, this, args);
+		return nativeLuajitCall(L, msg, args);
 	}
 
 	public native long nativeLuajitInit(String wd);
-	public native Object nativeLuajitCall(long L, String msg, Object this_, Object[] args);
+	public native Object nativeLuajitCall(long L, String msg, Object[] args);
 
 	// api used by lua for loading bootstrap classes from assets folder:
 
