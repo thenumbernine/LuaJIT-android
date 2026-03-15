@@ -14,8 +14,8 @@ local M = {}
 
 -- rebuild args cast to their instanciated class
 local function recastObj(obj)
-	if obj ~= nil then obj = J:_fromJObject(obj._ptr) end
-	return obj
+	if obj == nil then return nil end
+	return J:_fromJObject(obj._ptr) or nil
 end
 local function recastObjs(...)
 	if select('#', ...) == 0 then return end
@@ -133,8 +133,6 @@ for i=0,#args-1 do
 	print(i, argi and J:_fromJObject(argi._ptr)._classpath or 'null')
 end
 --]]
-	local result
-
 	-- get the return type / what I'll need to cast this to
 	local activityMethodsForName = Activity._methods[methodName]
 	-- [[
@@ -149,7 +147,7 @@ end
 		print('...based on args...')
 		print('#args', select('#', recastObjs(args:_unpack())))
 		for i=0,#args-1 do
-			print('arg['..i..'] =', (recastObj(args[i]) or {})._classpath)
+			print('arg['..i..'] =', (recastObj(args[i]) or {})._classpath, recastObj(args[i]))
 		end
 		for _,prim in ipairs(require 'java.util'.prims) do
 			local info = infoForPrims[prim]
@@ -169,20 +167,22 @@ end
 	-- TODO here now we might have to unbox primitives ...
 
 	local callback = callbacks[methodName]
+	local result
 	if callback then
 		result = callback(activity, recastObjs(args:_unpack()))
 	else
 		local super = activity.super
 		result = super[methodName](super, recastObjs(args:_unpack()))
 	end
+print('result', result)
 
 	-- now prepare the result for the JNI layer
 	if result == nil then return 0 end
---DEBUG:print('java:', methodName, 'returning', result)
+print('java:', methodName, 'returning', result)
 	local primInfo = method and infoForPrims[method._sig[1]]
 	if primInfo then
 		result = J[primInfo.boxedType](result)._ptr
---DEBUG:print('...boxed and returning', result)
+print('...boxed and returning', result)
 	end
 	assert.type(result, 'cdata')
 	return assert(tonumber(ffi.cast('uint64_t', result)))
