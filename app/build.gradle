@@ -3,19 +3,19 @@ plugins {
 }
 
 android {
-	namespace 'io.github.thenumbernine.LuaJIT'
+	namespace = 'io.github.thenumbernine.LuaJIT'
 	compileSdk {
 		version = release(36)
 	}
 
 	defaultConfig {
-		applicationId "io.github.thenumbernine.LuaJIT"
-		minSdk 24
-		targetSdk 36
-		versionCode 1
-		versionName "1.0"
+		applicationId = "io.github.thenumbernine.LuaJIT"
+		minSdk = 24
+		targetSdk = 36
+		versionCode = 1
+		versionName = "1.0"
 
-		testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 		base.archivesName.set("LuaJIT-$versionName")
 
@@ -28,30 +28,30 @@ android {
 
 	buildTypes {
 		release {
-			minifyEnabled false
+			minifyEnabled = false
 			proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 		}
 	}
 	compileOptions {
-		sourceCompatibility JavaVersion.VERSION_11
-		targetCompatibility JavaVersion.VERSION_11
+		sourceCompatibility = JavaVersion.VERSION_11
+		targetCompatibility = JavaVersion.VERSION_11
 	}
 	externalNativeBuild {
 		cmake {
-			path file('src/main/cpp/CMakeLists.txt')
-			version '3.22.1'
+			path = file('src/main/cpp/CMakeLists.txt')
+			version = '3.22.1'
 		}
 	}
 	buildFeatures {
-		viewBinding true
+		viewBinding = true
 	}
 
 	splits {
 		abi {
-			enable true
+			enable = true
 			reset()
 			include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-			universalApk false
+			universalApk = false
 		}
 	}
 }
@@ -64,4 +64,10 @@ dependencies {
 	testImplementation libs.junit
 	androidTestImplementation libs.ext.junit
 	androidTestImplementation libs.espresso.core
+
+	// So these imports were working before, but now they're not, no idea why.
+    // Did something get upgraded and now a link won't work?
+	// Typical Google bullshit.
+    implementation 'androidx.appcompat:appcompat:1.3.1'
+    implementation 'com.google.android.material:material:1.4.0'
 }

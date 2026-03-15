@@ -111,6 +111,11 @@ public class Activity extends android.app.Activity {
 		return (Boolean)luajitCall("onCreatePanelMenu", featureId, menu);
 	}
 
+	@Override
+	public boolean onOptionsItemSelected(android.view.MenuItem item) {
+		return (Boolean)luajitCall("onOptionsItemSelected", item);
+	}
+
 	// the luajit<->java bootstrap interaction
 	// this would be a million times easier if I could provide a class to the AndroidManifest via function instead of via xml text...
 
