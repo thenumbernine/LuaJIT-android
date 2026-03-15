@@ -6,6 +6,8 @@ local ffi = require 'ffi'
 local J = require 'java'
 local pthread = require 'ffi.req' 'c.pthread'
 
+print('Android API:', J.android.os.Build.VERSION.SDK_INT)
+
 -- rebuild args cast to their instanciated class
 local function recastArgs(...)
 	if select('#', ...) == 0 then return end
@@ -286,7 +288,7 @@ end
 	local result
 	local callback = callbacks[methodName]
 	if callback then
-		result = callback(activity, args:_unpack())
+		result = callback(activity, recastArgs(args:_unpack()))
 	else
 		result = activity.super[methodName](activity, recastArgs(args:_unpack()))
 	end
