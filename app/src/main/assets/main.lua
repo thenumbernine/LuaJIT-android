@@ -1,12 +1,12 @@
 local ffi = require 'ffi'
 
+--[=[
 -- chdir to our lua projects root
 ffi.cdef[[int chdir(const char *path);]]
 local function chdir(s)
 	local res = ffi.C.chdir((assert(s)))
 	assert(res==0, 'chdir '..tostring(s)..' failed')
 end
-
 --[[
 The biggest pain point of this entire project is the /data app folder.
 Android has designed itself to make accessing it as painful as possible. For no reason.
@@ -14,6 +14,7 @@ So here's me redirecting everything to sdcard upon init.
 --]]
 local projectDir = '/sdcard/Documents/Projects/lua'
 chdir(projectDir)
+--]=]
 
 -- [=[
 -- setup the asset based package loader:
@@ -59,10 +60,7 @@ package.loaded['java.java'] = J
 --]=]
 
 print('BEGIN android main.lua')
-
--- TODO here ... setup the package.loader from the luajit -> java functions
-local f = assert(loadfile'luajit-android.lua')()
-
+local f = require 'luajit-android'
 print('DONE android main.lua')
 
 -- return our callback

@@ -174,16 +174,15 @@ end
 		local super = activity.super
 		result = super[methodName](super, recastObjs(args:_unpack()))
 	end
-print('result', result)
+print('java:', methodName, 'returning', result)
 
 	-- now prepare the result for the JNI layer
 	if result == nil then return 0 end
-print('java:', methodName, 'returning', result)
 	local primInfo = method and infoForPrims[method._sig[1]]
 	if primInfo then
 		result = J[primInfo.boxedType](result)._ptr
 print('...boxed and returning', result)
 	end
 	assert.type(result, 'cdata')
-	return assert(tonumber(ffi.cast('uint64_t', result)))
+	return assert(tonumber(ffi.cast('uintptr_t', result)))
 end
