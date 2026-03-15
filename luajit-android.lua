@@ -4,6 +4,7 @@
 -- and then write stupid android apps
 local ffi = require 'ffi'
 local J = require 'java'
+local assert = require 'ext.assert'
 
 --print('_G='..tostring(_G)..', jniEnv='..tostring(J._ptr))
 --print('Android API:', J.android.os.Build.VERSION.SDK_INT)
@@ -133,12 +134,15 @@ end
 		result = super[methodName](super, recastArgs(args:_unpack()))
 	end
 
-print('java:', methodName, 'returning', result)
+	-- now prepare the result for the JNI layer
+	if result == nil then return 0 end
+--DEBUG:print('java:', methodName, 'returning', result)
 	local infoForPrims = require 'java.util'.infoForPrims
 	local primInfo = method and infoForPrims[method._sig[1]]
 	if primInfo then
-		result = J[primInfo.boxedType](result)
-print('...boxed and returning', result._ptr)
+		result = J[primInfo.boxedType](result)._ptr
+--DEBUG:print('...boxed and returning', result)
 	end
-	return result
+	assert.type(result, 'cdata')
+	return assert(tonumber(ffi.cast('uint64_t', result)))
 end

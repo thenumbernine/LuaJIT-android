@@ -807,7 +807,8 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 
 	jobject objres = NULL;
 	if (!lua_isnil(L, -1)) {
-		objres = (jobject)lua_touserdata(L, -1);
+		// TODO there has to be a way to do this easily
+		objres = (jobject)(uintptr_t)lua_tonumber(L, -1);
 	}
 	lua_pop(L, 1);
 printf("JNI C: %s returning %p\n", msgstr, objres);
