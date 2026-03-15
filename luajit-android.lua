@@ -6,16 +6,25 @@ local ffi = require 'ffi'
 local J = require 'java'
 local assert = require 'ext.assert'
 
+local M = {}
 --print('_G='..tostring(_G)..', jniEnv='..tostring(J._ptr))
 --print('Android API:', J.android.os.Build.VERSION.SDK_INT)
 
 -- rebuild args cast to their instanciated class
-local function recastArgs(...)
-	if select('#', ...) == 0 then return end
-	local arg = ...
-	if arg ~= nil then arg = J:_fromJObject(arg._ptr) end
-	return arg, recastArgs(select(2, ...))
+local function recastObj(obj)
+	if obj ~= nil then obj = J:_fromJObject(obj._ptr) end
+	return obj
 end
+local function recastObjs(...)
+	if select('#', ...) == 0 then return end
+	return recastObj(arg), recastObjs(select(2, ...))
+end
+
+local Intent = J.android.content.Intent
+local Activity = J.android.app.Activity
+local LinearLayout = J.android.widget.LinearLayout
+local ViewGroup = J.android.view.ViewGroup
+local ImageView = J.android.widget.ImageView
 
 local MENU_CHOOSE_FOLDER = 1
 
@@ -26,9 +35,7 @@ local callbacks = {
 	onCreate = function(activity, ...)
 		activity.super:onCreate(...)
 
-		local LinearLayout = J.android.widget.LinearLayout
 		local root = LinearLayout(activity)
-		local ViewGroup = J.android.view.ViewGroup
 		root:setLayoutParams(ViewGroup.LayoutParams(-1, -1))
 
 		local toolbar = J.android.widget.Toolbar(activity)
@@ -40,37 +47,10 @@ local callbacks = {
 		local scrollView = J.android.widget.ScrollView(activity)
 		scrollView:setLayoutParams(LinearLayout.LayoutParams(-1, -1))
 
-		local GridLayout = J.android.widget.GridLayout
-		local gridLayout = GridLayout(activity)
+		local gridLayout = J.android.widget.GridLayout(activity)
+M.gridLayout = gridLayout
 		gridLayout:setColumnCount(3)
 		gridLayout:setLayoutParams(ViewGroup.LayoutParams(-1, -2))	-- WRAP_CONTENT height
-
-		local function populateGridWithImages(grid)
-			local imageDir = J.java.io.File(J.android.os.Environment:getExternalStorageDirectory(), 'Pictures')
-			if imageDir:exists() and imageDir:isDirectory() then
-				local files = imageDir:listFiles()
-				if files ~= nil then
-					local screenWidth = activity:getResources():getDisplayMetrics().widthPixels
-					local imageSize = screenWidth / 3
-					for file in files:_iter() do
-						local ImageView = J.android.widget.ImageView
-						local imageView = ImageView(activity)
-
-						local params = GridLayout.LayoutParams()
-						params.width = imageSize
-						params.height = imageSize
-						imageView:setLayoutParams(params)
-
-						imageView:setScaleType(ImageView.ScaleType.CENTER_CROP)
-						imageView:setPadding(4,4,4,4)
-						imageView:setImageURI(J.android.net.Uri:fromFile(file))
-						grid:addView(imageView)
-					end
-				end
-			end
-		end
-
-		populateGridWithImages(gridLayout)
 
 		scrollView:addView(gridLayout)
 		root:addView(scrollView)
@@ -94,11 +74,58 @@ local callbacks = {
 	end,
 
 	onOptionsItemSelected = function(activity, item)
+		local function openFolderPicker()
+			local intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+			intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+			activity:startActivityForResult(intent, 9999)
+		end
+
 		if item:getItemId() == MENU_CHOOSE_FOLDER then
-			activity:openFolderPicker()
+			openFolderPicker()
 			return true
 		end
 		return activity.super:onOptionsItemSelected(item)
+	end,
+
+	onActivityResult = function(activity, requestCode, resultCode, data)
+		activity.super:onActivityResult(requestCode, resultCode, data)
+
+		if requestCode:intValue() == 9999
+		and resultCode:intValue() == Activity.RESULT_OK
+		then
+			local treeUri = data:getData()
+			activity:getContentResolver():takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+			local pickedDir = J.androidx.documentfile.provider.DocumentFile:fromTreeUri(activity, treeUri)
+
+			local function loadImagesFromDocument(directory)
+				local gridLayout = M.gridLayout
+				gridLayout:removeAllViews()
+				local size = activity:getResources():getDisplayMetrics().widthPixels / 3
+				for file in directory:listFiles():_iter() do
+					local fileType = file:getType()
+					if fileType ~= nil then
+						fileType = tostring(fileType)
+						if fileType:match'^image/' then
+							-- ... do something here
+							local img = ImageView(activity)
+							img:setLayoutParams(ViewGroup.LayoutParams(size, size))
+							img:setScaleType(ImageView.ScaleType.CENTER_CROP)
+
+							img:setImageURI(file:getUri())
+
+							gridLayout:addView(img)
+						end
+					end
+				end
+			end
+			loadImagesFromDocument(pickedDir)
+		end
+	end,
+
+	-- TODO is this a boxed type issue?
+	onTrimMemory = function(activity, level)
+		activity.super:onTrimMemory(level:intValue())
 	end,
 }
 
@@ -119,19 +146,25 @@ end
 	-- get the return type / what I'll need to cast this to
 	local method = require 'java.callresolve'.resolve(
 		methodName,
-		activity:_getClass()._methods[methodName],
+		Activity._methods[methodName],
 		activity,
-		recastArgs(args:_unpack()))
+		recastObjs(args:_unpack()))
 	if method == nil then
 		print("!!! WARNING !!! couldn't get activity method for "..methodName)
+		print('...based on args...')
+		for i=0,#args-1 do
+			print('arg['..i..'] =', (recastObj(args[i]) or {})._classpath)
+		end
 	end
+
+	-- TODO here now we might have to unbox primitives ...
 
 	local callback = callbacks[methodName]
 	if callback then
-		result = callback(activity, recastArgs(args:_unpack()))
+		result = callback(activity, recastObjs(args:_unpack()))
 	else
 		local super = activity.super
-		result = super[methodName](super, recastArgs(args:_unpack()))
+		result = super[methodName](super, recastObjs(args:_unpack()))
 	end
 
 	-- now prepare the result for the JNI layer

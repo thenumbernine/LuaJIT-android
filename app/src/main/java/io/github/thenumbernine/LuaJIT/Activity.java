@@ -19,57 +19,19 @@ public class Activity extends android.app.Activity {
 	}
 
 	public long L = 0L;
-
-	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		luajitCall("onCreate", savedInstanceState);
-	}
-
-	@Override
-	protected void onSaveInstanceState(Bundle outState) {
-		luajitCall("onSaveInstanceState", outState);
-	}
+	
+	// public methods
 
 	@Override
 	public void onRestoreInstanceState(Bundle outState, PersistableBundle persistentState) {
 		luajitCall("onRestoreInstanceState", outState, persistentState);
 	}
-
-	@Override
-	protected void onPause() {
-		luajitCall("onPause");
-	}
-
-   	@Override
-	protected void onResume() {
-		luajitCall("onResume");
-	}
-
-	@Override
-	protected void onStart() {
-		luajitCall("onStart");
-	}
-
-   	@Override
-	protected void onStop() {
-		luajitCall("onStop");
-	}
-
-	@Override
-	protected void onRestart() {
-		luajitCall("onRestart");
-	}
-
-	@Override
-    protected void onDestroy() {
-		luajitCall("onDestroy");
-	}
-
+	
 	@Override
     public void onWindowFocusChanged(boolean hasFocus) {
 		luajitCall("onWindowFocusChanged", hasFocus);
 	}
-
+	
 	@Override
     public void onTrimMemory(int level) {
 		luajitCall("onTrimMemory", level);
@@ -80,15 +42,9 @@ public class Activity extends android.app.Activity {
 		luajitCall("onConfigurationChanged", newConfig);
 	}
 
-
 	@Override
     public void onBackPressed() {
 		luajitCall("onBackPressed");
-	}
-
-	@Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-		luajitCall("onActivityResult", requestCode, resultCode, data);
 	}
 
 	@Override
@@ -114,6 +70,53 @@ public class Activity extends android.app.Activity {
 	@Override
 	public boolean onOptionsItemSelected(android.view.MenuItem item) {
 		return (Boolean)luajitCall("onOptionsItemSelected", item);
+	}
+
+	// protected methods
+
+	@Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		luajitCall("onActivityResult", requestCode, resultCode, data);
+	}
+
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		luajitCall("onCreate", savedInstanceState);
+	}
+
+	@Override
+    protected void onDestroy() {
+		luajitCall("onDestroy");
+	}
+
+	@Override
+	protected void onPause() {
+		luajitCall("onPause");
+	}
+	
+	@Override
+	protected void onRestart() {
+		luajitCall("onRestart");
+	}
+
+   	@Override
+	protected void onResume() {
+		luajitCall("onResume");
+	}
+
+	@Override
+	protected void onSaveInstanceState(Bundle outState) {
+		luajitCall("onSaveInstanceState", outState);
+	}
+
+	@Override
+	protected void onStart() {
+		luajitCall("onStart");
+	}
+
+   	@Override
+	protected void onStop() {
+		luajitCall("onStop");
 	}
 
 	// the luajit<->java bootstrap interaction
