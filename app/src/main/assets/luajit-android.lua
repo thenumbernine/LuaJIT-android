@@ -163,16 +163,8 @@ local callbacks = {
 
         activity:setContentView(scrollView)
 
-		-- if I run this thread -> new thread -> this thread and call this, no problem right?
-		local function refreshFileContent()
-			textView:setText(require 'ext.path' 'out.txt':read() or '')
-		end
-
-		--[[ why doesn't Android's Runnable register as a SAM method?
-		local runnable = J.Runnable:_cb(refreshFileContent)
-		--]]
 		-- [=[
-		local runnable = J.Runnable:_subclass{
+		local ObserverRunnable = J.Runnable:_subclass{
 			fields = {
 				textView = {
 					isPublic = true,
@@ -183,36 +175,26 @@ local callbacks = {
 				run = {
 					isPublic = true,
 					sig = {'void'},
-					--[[ without new state:
-					value = function(this)
-					--]]
-					-- [[ with new state
 					newLuaState = true,	-- back to the old thread but let's be safe?
 					value = function(J, this)
-					--]]
-						--[==[ calling to outer Lua state
-						refreshFileContent()
-						--]==]
-						-- [==[ just calling Java
+print('in runOnUiThread runnable')
+						-- refreshFileContent:
 						this.textView:setText(require 'ext.path' 'out.txt':read() or '')
-						--]==]
 					end,
 				},
 			}
-		}()
-		runnable.textView = textView
-		--]=]
+		}
 
-		observer = J.android.os.FileObserver:_subclass{
+		local Observer = J.android.os.FileObserver:_subclass{
 			-- pass the activity and runnable through java so it doesn't have to cross lua thread states
 			fields = {
 				activity = {
 					isPublic = true,
 					sig = activity._classpath,
 				},
-				runnable = {
+				textView = {
 					isPublic = true,
-					sig = runnable._classpath,
+					sig = textView._classpath,
 				},
 			},
 			methods = {
@@ -221,21 +203,29 @@ local callbacks = {
 					sig = {'void', 'int', 'java.lang.String'},
 					newLuaState = true,	-- new thread, new lua state
 					value = function(J, this, event, path)	-- newLuaState means 'J' first
-						--[[ don't do this, it will make a new subclass every time the file updates ...
-						this.activity.runOnUiThread(refreshFileContent)
-						--]]
-						-- [[
-						this.activity:runOnUiThread(this.runnable)
-						--]]
+print('in observer:onEvent')
+						local runnable = ObserverRunnable()
+						runnable.textView = this.textView
+
+						this.activity:runOnUiThread(runnable)
 					end,
 				},
 			},
-		}()
+		}
+		local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
+		local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
 		observer.activity = activity
-		observer.runnable = runnable
+		observer.textView = textView
 
-		refreshFileContent()
+		-- refreshFileContent:
+		textView:setText(require 'ext.path' 'out.txt':read() or '')
+
+		-- this gets a weird error:
+		-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
 		observer:startWatching()
+		--]=]
+		-- [=[ same but without FileObserver, just run a thread and watch the file and update
+		--]=]
 	end,
 
 	onDestroy = function(activity)
@@ -358,11 +348,15 @@ print('onCreate DONE')
 }
 --]=======]
 return function(methodName, activity, ...)
-	print(methodName, activity, ...)
+	print('BEGIN', methodName, activity, ...)
 	local callback = callbacks[methodName]
+	local result
 	if callback then
-		return callback(activity, ...)
+		result = callback(activity, ...)
+	else
+		local super = activity.super
+		result = super[methodName](super, ...)
 	end
-	local super = activity.super
-	return super[methodName](super, ...)
+	print('END', methodName)
+	return result
 end

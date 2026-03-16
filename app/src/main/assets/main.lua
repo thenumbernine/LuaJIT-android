@@ -113,17 +113,47 @@ function NewLiteThread:init(args, ...)
 		lualib.lua_pushcclosure(L, main.java_isAssetPathDir, 0)
 		lualib.lua_setfield(L, lualib.LUA_REGISTRYINDEX, 'java_isAssetPathDir')
 
+--[==[ pass in the C functions
 		lua([[
 local assetLoader = ...
 
 local reg = debug.getregistry()
-print'in sub lua state:'
 print('reg.java_readAssetPath', reg.java_readAssetPath)
 print('reg.java_isAssetPathDir', reg.java_isAssetPathDir)
 
 table.insert(package.loaders, assetLoader)
 ]], assetLoader)
-
+--]==]
+-- [==[
+-- just remake it
+lua[[
+local function assetLoader(modname)
+	local reg = debug.getregistry()
+	local java_readAssetPath = reg.java_readAssetPath
+	local java_isAssetPathDir = reg.java_isAssetPathDir
+	-- return function on success, string on failure
+	local reasons = {}
+	for opt in ('?.lua;?/?.lua'):gmatch'[^;]+' do
+		local fn = opt:gsub('%?', (modname:gsub('%.', '/')))
+		if java_isAssetPathDir(fn) then
+			table.insert(reasons, 'is an asset dir: '..fn)
+		else
+			local data = java_readAssetPath(fn)
+			if not data then
+				table.insert(reasons, 'not an asset path: '..fn)
+			else
+				local res, err = load(data, modname)
+				if res then return res end
+				table.insert(reasons, fn..' '..tostring(err))
+			end
+		end
+	end
+	return "module '"..modname.."' not found:\n\t"
+		..table.concat(reasons, '\n\t')
+end
+table.insert(package.loaders, assetLoader)
+]]
+--]==]
 		return oldinit(thread, ...)
 	end
 
@@ -175,8 +205,7 @@ local Activity = J.android.app.Activity
 return function(methodName, activity, args)
 	activity = J:_fromJObject(ffi.cast('jobject', activity))
 	args = J:_fromJObject(ffi.cast('jobject', args))
-
-print('activity.L', '0x'..bit.tohex(activity.L, 8))
+---DEBUG:print('activity.L', '0x'..bit.tohex(activity.L, 8))
 
 	-- get the return type / what I'll need to cast this to
 	local activityMethodsForName = Activity._methods[methodName]
@@ -207,13 +236,13 @@ print('activity.L', '0x'..bit.tohex(activity.L, 8))
 
 	local result = activityMethodHandler(methodName, activity, recastObjs(args:_unpack()))
 
-print('java:', methodName, 'returning', result)
+---DEBUG:print('java:', methodName, 'returning', result)
 	-- now prepare the result for the JNI layer
 	if result == nil then return 0 end
 	local primInfo = method and infoForPrims[method._sig[1]]
 	if primInfo then
 		result = J[primInfo.boxedType](result)._ptr
-print('...boxed and returning', result)
+---DEBUG:print('...boxed and returning', result)
 	end
 	return assert(tonumber(ffi.cast('uintptr_t', result)))
 end
