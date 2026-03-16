@@ -4,6 +4,8 @@
 -- and then write stupid android apps
 local ffi = require 'ffi'
 local J = require 'java'
+local JavaCallResolve = require 'java.callresolve'
+local infoForPrims = require 'java.util'.infoForPrims
 
 local M = {}
 --print('_G='..tostring(_G)..', jniEnv='..tostring(J._ptr))
@@ -78,32 +80,61 @@ M.gridLayout = gridLayout
 		and resultCode:intValue() == Activity.RESULT_OK
 		then
 			local treeUri = data:getData()
+
 			activity:getContentResolver():takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+		
+			local files = {}
+			--[[ androidx method
+			local directory = J.androidx.documentfile.provider.DocumentFile:fromTreeUri(activity, treeUri)
+			for file in directory:listFiles():_iter() do
+				table.insert(files, {
+					type = file:getType(),
+					uri = file:getUri(),
+				})
+			end
+			--]]
+			-- [[
+			local DocumentsContract = J.android.provider.DocumentsContract
+			local childrenUri = DocumentsContract:buildChildDocumentsUriUsingTree(
+				treeUri,
+				DocumentsContract:getTreeDocumentId(treeUri)
+			)
+			-- TODO build string from Lua table...
+			local cols = J:_newArray(J.String, 3);
+			cols[0] = DocumentsContract.Document.COLUMN_DISPLAY_NAME;
+			cols[1] = DocumentsContract.Document.COLUMN_DOCUMENT_ID;
+			cols[2] = DocumentsContract.Document.COLUMN_MIME_TYPE;
+			local cursor = activity:getContentResolver():query(childrenUri, cols, nil, nil, nil)
+			while cursor:moveToNext() do
+				local displayName = cursor:getString(0)
+				local docId = cursor:getString(1)
+				local fileType = cursor:getString(2)
+				local fileUri = DocumentsContract:buildDocumentUriUsingTree(treeUri, docId)
+				table.insert(files, {
+					type = fileType,
+					uri = fileUri,
+				})
+			end
+			cursor:close()
+			--]]
 
-			local pickedDir = J.androidx.documentfile.provider.DocumentFile:fromTreeUri(activity, treeUri)
-
-			local function loadImagesFromDocument(directory)
-				local gridLayout = M.gridLayout
-				gridLayout:removeAllViews()
-				local size = activity:getResources():getDisplayMetrics().widthPixels / 3
-				for file in directory:listFiles():_iter() do
-					local fileType = file:getType()
-					if fileType ~= nil then
-						fileType = tostring(fileType)
-						if fileType:match'^image/' then
-							-- ... do something here
-							local img = ImageView(activity)
-							img:setLayoutParams(ViewGroup.LayoutParams(size, size))
-							img:setScaleType(ImageView.ScaleType.CENTER_CROP)
-
-							img:setImageURI(file:getUri())
-
-							gridLayout:addView(img)
-						end
+			local gridLayout = M.gridLayout
+			gridLayout:removeAllViews()
+			local size = activity:getResources():getDisplayMetrics().widthPixels / 3
+			for _,file in ipairs(files) do
+				local fileType = file.type
+				if fileType ~= nil then
+					fileType = tostring(fileType)
+					if fileType:match'^image/' then
+						-- ... do something here
+						local img = ImageView(activity)
+						img:setLayoutParams(ViewGroup.LayoutParams(size, size))
+						img:setScaleType(ImageView.ScaleType.CENTER_CROP)
+						img:setImageURI(file.uri)
+						gridLayout:addView(img)
 					end
 				end
 			end
-			loadImagesFromDocument(pickedDir)
 		end
 	end,
 }

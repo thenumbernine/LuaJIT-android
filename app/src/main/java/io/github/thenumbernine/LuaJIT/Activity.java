@@ -42,8 +42,15 @@ public class Activity extends android.app.Activity {
 		luajitCall("onConfigurationChanged", newConfig);
 	}
 
+/* "new" way that requires androidx which requires a bunch of extra bullshit jars to be downloaded
 	@Override
-    public void onBackPressed() {
+    public android.window.OnBackInvokedDispatcher getOnBackInvokedDispatcher() {
+		return (android.window.OnBackInvokedDispatcher )luajitCall("getOnBackInvokedDispatcher");
+	}
+*/
+
+	@Override
+	public void onBackPressed() {
 		luajitCall("onBackPressed");
 	}
 

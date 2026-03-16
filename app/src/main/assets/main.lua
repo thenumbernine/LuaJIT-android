@@ -1,6 +1,6 @@
 local ffi = require 'ffi'
 
--- [=[
+--[=[
 -- chdir to our lua projects root
 -- tempting ot make this dir configurable in the app
 ffi.cdef[[int chdir(const char *path);]]
@@ -15,8 +15,6 @@ So here's me redirecting everything to sdcard upon init.
 --]]
 local projectDir = '/sdcard/Documents/Projects/lua'
 chdir(projectDir)
---]=]
-
 
 -- setup LUA_PATH and LUA_CPATH here
 package.path = table.concat({
@@ -34,6 +32,7 @@ package.cpath = table.concat({
 ffi.cdef[[int setenv(const char*,const char*,int);]]
 ffi.C.setenv('LUA_PATH', package.path, 1)
 ffi.C.setenv('LUA_CPATH', package.cpath, 1)
+--]=]
 
 
 -- [=[
