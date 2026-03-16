@@ -4,12 +4,12 @@
 -- and then write stupid android apps
 local ffi = require 'ffi'
 local J = require 'java'
-local JavaCallResolve = require 'java.callresolve'
-local infoForPrims = require 'java.util'.infoForPrims
 
-local M = {}
 --print('_G='..tostring(_G)..', jniEnv='..tostring(J._ptr))
 --print('Android API:', J.android.os.Build.VERSION.SDK_INT)
+
+
+--[=======[ directory image gallery example
 
 local Intent = J.android.content.Intent
 local Activity = J.android.app.Activity
@@ -18,6 +18,8 @@ local ViewGroup = J.android.view.ViewGroup
 local ImageView = J.android.widget.ImageView
 
 local MENU_CHOOSE_FOLDER = 1
+
+local gridLayout
 
 -- these callbacks are centered around the original activity
 -- you can make a new activity and then provide its callbacks in Lua
@@ -38,8 +40,7 @@ local callbacks = {
 		local scrollView = J.android.widget.ScrollView(activity)
 		scrollView:setLayoutParams(LinearLayout.LayoutParams(-1, -1))
 
-		local gridLayout = J.android.widget.GridLayout(activity)
-M.gridLayout = gridLayout
+		gridLayout = J.android.widget.GridLayout(activity)
 		gridLayout:setColumnCount(3)
 		gridLayout:setLayoutParams(ViewGroup.LayoutParams(-1, -2))	-- WRAP_CONTENT height
 
@@ -118,7 +119,6 @@ M.gridLayout = gridLayout
 			cursor:close()
 			--]]
 
-			local gridLayout = M.gridLayout
 			gridLayout:removeAllViews()
 			local size = activity:getResources():getDisplayMetrics().widthPixels / 3
 			for _,file in ipairs(files) do
@@ -139,6 +139,208 @@ M.gridLayout = gridLayout
 	end,
 }
 
+--]=======] 
+-- [=======[ attempt at just outputting the out.txt file
+
+local observer
+local callbacks = {
+	onCreate = function(activity, savedInstanceState)
+		activity.super:onCreate(savedInstanceState)
+
+		local ViewGroup = J.android.view.ViewGroup
+
+        local textView = J.android.widget.TextView(activity)
+        textView:setLayoutParams(ViewGroup.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+		))
+        textView:setPadding(16, 16, 16, 16)
+
+        local scrollView = J.android.widget.ScrollView(activity)
+        scrollView:setLayoutParams(ViewGroup.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+		))
+        scrollView:addView(textView)
+
+        activity:setContentView(scrollView)
+
+		-- if I run this thread -> new thread -> this thread and call this, no problem right?
+		local function refreshFileContent()
+			textView:setText(require 'ext.path' 'out.txt':read() or '')
+		end
+
+		--[[ why doesn't Android's Runnable register as a SAM method?
+		local runnable = J.Runnable:_cb(refreshFileContent)
+		--]]
+		-- [[
+		local runnable = J.Runnable:_subclass{
+			methods = {
+				run = {
+					isPublic = true,
+					sig = {'void'},
+					--newLuaState = true,	-- back to the old thread but let's be safe? 
+					value = function(this)
+						refreshFileContent()
+					end,
+				},
+			}
+		}()
+		--]]
+
+		local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
+		observer = J.android.os.FileObserver:_subclass{
+			-- pass the activity and runnable through java so it doesn't have to cross lua thread states
+			fields = {
+				activity = {
+					isPublic = true,
+					sig = activity._classpath,
+				},
+				runnable = {
+					isPublic = true,
+					sig = runnable._classpath,
+				},
+			},
+			methods = {
+				onEvent = {
+					isPublic = true,
+					sig = {'void', 'int', 'java.lang.String'},
+					newLuaState = true,	-- new thread, new lua state
+					value = function(J, this, event, path)	-- newLuaState means 'J' first
+						--[[ don't do this, it will make a new subclass every time the file updates ...
+						runOnUiThread(refreshFileContent)
+						--]]
+						-- [[
+						this.activity:runOnUiThread(this.runnable)
+						--]]
+					end,
+				},
+			},
+		}()
+		observer.activity = activity
+		observer.runnable = runnable
+
+		refreshFileContent()
+		observer:startWatching()
+	end,
+
+	onDestroy = function(activity)
+		activity.super:onDestroy()
+		if observer then observer:stopWatching() end
+	end,
+}
+--]=======] 
+--[=======[ bluetooth scanner example ... gets back nothing and no errors *shrug*
+local BluetoothDevice = J.android.bluetooth.BluetoothDevice
+
+local receiver, bluetoothAdapter
+
+local callbacks = {
+	onCreate = function(activity, savedInstanceState)
+		activity.super:onCreate(savedInstanceState)
+
+		bluetoothAdapter = J.android.bluetooth.BluetoothAdapter:getDefaultAdapter()
+
+		local BroadcastReceiver = J.android.content.BroadcastReceiver
+		local Receiver = BroadcastReceiver:_subclass{
+			isPublic = true,
+			methods = {
+				{
+					name = 'onReceive',
+					isPublic = true,
+					sig = {'void', 'android.content.Context', 'android.content.Intent'},
+					value = function(this, context, intent)
+						local action = intent:getAction()
+						if BluetoothDevice.ACTION_FOUND:equals(action) then
+							local device = intent:getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+							local deviceName = device:getName()
+							local deviceHardwareAddress = device:getAddress() -- MAC address
+							-- Hidden devices will appear here if they are transmitting
+print('found', deviceHardwareAddress, deviceName)
+						end
+					end,
+				},
+			},
+		}
+		receiver = Receiver()
+print('registering receiver', receiver)
+
+		local filter = J.android.content.IntentFilter(BluetoothDevice.ACTION_FOUND)
+		activity:registerReceiver(receiver, filter)
+
+		if not (bluetoothAdapter
+		and bluetoothAdapter:isEnabled())
+		then
+			print('BLUETOOTH IS NOT ENABLED')
+			return
+		end
+
+		bluetoothAdapter:startDiscovery()
+print('onCreate DONE')
+	end,
+
+	onDestroy = function(activity)
+		activity.super:onDestroy()
+	
+print('unregistering receiver', receiver)
+		activity:unregisterReceiver(receiver)
+		
+		if bluetoothAdapter then
+			bluetoothAdapter:cancelDiscovery()
+		end
+	end,
+}
+--]=======] 
+--[=======[  bluetooth le scanner example
+local callbacks = {
+	onCreate = function(activity, savedInstanceState)
+		activity.super:onCreate(savedInstanceState)
+
+BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();
+BluetoothLeScanner bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+
+private ScanCallback leScanCallback = new ScanCallback() {
+    @Override
+    public void onScanResult(int callbackType, ScanResult result) {
+        BluetoothDevice device = result.getDevice();
+        // Access device name, MAC address, and signal strength (RSSI)
+        String name = device.getName();
+        String address = device.getAddress();
+        int rssi = result.getRssi();
+
+        Log.d("BLE_SCAN", "Found: " + name + " [" + address + "] RSSI: " + rssi);
+    }
+
+    @Override
+    public void onScanFailed(int errorCode) {
+        Log.e("BLE_SCAN", "Scan failed with error: " + errorCode);
+    }
+};
+
+private boolean mScanning;
+private Handler handler = new Handler();
+private static final long SCAN_PERIOD = 10000; // 10 seconds
+
+private void scanLeDevice() {
+    if (!mScanning) {
+        // Stop scanning after the defined period
+        handler.postDelayed(() -> {
+            mScanning = false;
+            bluetoothLeScanner.stopScan(leScanCallback);
+        }, SCAN_PERIOD);
+
+        mScanning = true;
+        // Optionally pass ScanFilters and ScanSettings for better efficiency
+        bluetoothLeScanner.startScan(leScanCallback);
+    } else {
+        mScanning = false;
+        bluetoothLeScanner.stopScan(leScanCallback);
+    }
+}
+
+print('onCreate DONE')
+	end,
+}
+--]=======] 
 return function(methodName, activity, ...)
 	print(methodName, activity, ...)
 	local callback = callbacks[methodName]

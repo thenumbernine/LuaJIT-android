@@ -55,7 +55,7 @@ static void signal_set(int sig, void (*h)(int))
 
 #endif
 
-static lua_State *globalL = NULL;
+lua_State *mainL = NULL;
 static const char *progname = LUA_PROGNAME;
 static char *empty_argv[2] = { NULL, NULL };
 
@@ -74,7 +74,7 @@ static void laction(int i)
 {
 	/* Terminate process if another SIGINT happens (double CTRL-C). */
 	signal_set(i, SIG_DFL);
-	lua_sethook(globalL, lstop, LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1);
+	lua_sethook(mainL, lstop, LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1);
 }
 #endif
 
@@ -537,7 +537,7 @@ static int pmain(lua_State *L)
 	char **argv = s->argv;
 	int argn;
 	int flags = 0;
-	globalL = L;
+	mainL = L;
 	LUAJIT_VERSION_SYM();  /* Linker-enforced version check. */
 
 	argn = collectargs(argv, &flags);
@@ -593,7 +593,7 @@ static int pmain(lua_State *L)
 JNIEnv * jniEnv = NULL;
 jobject androidActivity = NULL;
 
-static int java_isAssetPathDir(lua_State *L) {
+int java_isAssetPathDir(lua_State *L) {
 	if (!androidActivity) luaL_error(L, "androidActivity is uninitialized");
 	if (!lua_isstring(L, 1)) luaL_error(L, "expected string");
 	char const * path = lua_tostring(L, 1);
@@ -609,7 +609,7 @@ static int java_isAssetPathDir(lua_State *L) {
 	return 1;
 }
 
-static int java_readAssetPath(lua_State *L) {
+int java_readAssetPath(lua_State *L) {
 	if (!androidActivity) luaL_error(L, "androidActivity is uninitialized");
 	if (!lua_isstring(L, 1)) luaL_error(L, "expected string");
 	char const * path = lua_tostring(L, 1);
@@ -636,7 +636,7 @@ static int java_readAssetPath(lua_State *L) {
 
 static int androidLuajitInit(lua_State *L) {
 	struct Smain *s = &smain;
-	globalL = L;
+	mainL = L;
 
 	lua_gc(L, LUA_GCSTOP, 0);
 	luaL_openlibs(L);				//

@@ -32,7 +32,7 @@ AAPT2 = $(BUILD_TOOLS_DIR)/aapt2
 # NOTICE `aapt2 compile` works on a normie AndroidManifest.xml while `aapt2 link` does not
 #RESOURCE_DIR = app/src/main/res
 RESOURCE_DIR = nogradle/res
-COMPILED_RESOURCES = compiled_resources/
+COMPILED_RESOURCES = _compiled_resources/
 $(COMPILED_RESOURCES):
 	mkdir -p $(COMPILED_RESOURCES)
 	$(AAPT2) compile \
@@ -98,14 +98,42 @@ $(CLASSES_DEX): $(JAVA_CLASS_FILES)
 		$(D8_FLAGS) \
 		--output $(CLASSES_DEX_DIR)
 
+# compile C files as well
+
+# arch folder in lib/
+LIB_ARCH=armeabi-v7a
+# arch prefix in NDK
+NDK_ARCH=armv7a
+
+NDK_VER = $(shell ls $(ANDROID_SDK_ROOT)/ndk | sort -nr | tail -1)
+NDK_DIR=$(ANDROID_SDK_ROOT)/ndk/$(NDK_VER)
+
+NDK_BIN=$(NDK_DIR)/toolchains/llvm/prebuilt/linux-x86_64/bin
+NDKCC=$(NDK_BIN)/$(NDK_ARCH)-linux-androideabi35-clang
+
+CPP_SRC_DIR = app/src/main/cpp
+OBJ_DIR = _obj
+# notice the include/ folder is created from the build scripts sitting in app/src/main/cpp/make-luajit-*.sh,
+#  which maybe I'll merge into this someday
+CFLAGS = -m32 -fPIC -Wall -I app/src/main/cpp/include/$(LIB_ARCH)
+$(OBJ_DIR)/luajit.o: $(CPP_SRC_DIR)/luajit.c
+	mkdir -p $(OBJ_DIR)
+	$(NDKCC) $(CFLAGS) $^ -c -o $@
+
+LIB_DIR = lib
+LIB_ARCH_DIR = $(LIB_DIR)/$(LIB_ARCH)
+LIBMAIN_SO = $(LIB_ARCH_DIR)/libmain.so
+$(LIBMAIN_SO): $(OBJ_DIR)/luajit.o
+	mkdir -p $(LIB_ARCH_DIR)
+	$(NDKCC) -shared -L$(LIB_ARCH_DIR) -lluajit -o $@ $^
+
 # now add the dex to the apk
 
-LIB_DIR = lib/
 APK_UNALIGNED_PATH = base-unaligned.apk
-$(APK_UNALIGNED_PATH): $(APK_OF_RESOURCES) $(CLASSES_DEX)
+$(APK_UNALIGNED_PATH): $(APK_OF_RESOURCES) $(CLASSES_DEX) $(LIBMAIN_SO)
 	cp $(APK_OF_RESOURCES) $(APK_UNALIGNED_PATH)
 	zip -j $(APK_UNALIGNED_PATH) $(CLASSES_DEX)
-	zip -r -0 -u $(APK_UNALIGNED_PATH) $(LIB_DIR)
+	zip -r -0 -u $(APK_UNALIGNED_PATH) $(LIB_DIR)/
 
 # use zipalign to align the unsigned apk
 APK_ALIGNED_PATH = base-aligned.apk
@@ -131,6 +159,10 @@ all: $(APK_SIGNED_PATH)
 .PHONY: install
 install: $(APK_SIGNED_PATH)
 	adb install $(APK_SIGNED_PATH)
+
+.PHONY: run
+run:
+	adb shell am start -n io.github.thenumbernine.LuaJIT/io.github.thenumbernine.LuaJIT.Activity
 
 .PHONY: log
 log:
