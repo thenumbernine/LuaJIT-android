@@ -133,7 +133,7 @@ static int traceback(lua_State *L)
 	return 1;
 }
 
-static int docall(lua_State *L, int narg, int nret)
+static int safecall(lua_State *L, int narg, int nret)
 {
 	int status;
 	int base = lua_gettop(L) - narg;  /* function index */
@@ -190,13 +190,13 @@ static void createargtable(lua_State *L, char **argv, int argc, int argf)
 
 static int dofile(lua_State *L, const char *name)
 {
-	int status = luaL_loadfile(L, name) || docall(L, 0, 0);
+	int status = luaL_loadfile(L, name) || safecall(L, 0, 0);
 	return report(L, status);
 }
 
 static int dostring(lua_State *L, const char *s, const char *name)
 {
-	int status = luaL_loadbuffer(L, s, strlen(s), name) || docall(L, 0, 0);
+	int status = luaL_loadbuffer(L, s, strlen(s), name) || safecall(L, 0, 0);
 	return report(L, status);
 }
 
@@ -204,7 +204,7 @@ static int dolibrary(lua_State *L, const char *name)
 {
 	lua_getglobal(L, "require");
 	lua_pushstring(L, name);
-	return report(L, docall(L, 1, 0));
+	return report(L, safecall(L, 1, 0));
 }
 
 static void write_prompt(lua_State *L, int firstline)
@@ -274,7 +274,7 @@ static void dotty(lua_State *L)
 	const char *oldprogname = progname;
 	progname = NULL;
 	while ((status = loadline(L)) != -1) {
-		if (status == LUA_OK) status = docall(L, 0, LUA_MULTRET);
+		if (status == LUA_OK) status = safecall(L, 0, LUA_MULTRET);
 		report(L, status);
 		if (status == LUA_OK && lua_gettop(L) > 0) {  /* any result to print? */
 			lua_getglobal(L, "print");
@@ -312,7 +312,7 @@ static int handle_script(lua_State *L, char **argx)
 		} else {
 			lua_pop(L, 1);
 		}
-		status = docall(L, narg, LUA_MULTRET);
+		status = safecall(L, narg, LUA_MULTRET);
 	}
 	return report(L, status);
 }
@@ -646,7 +646,7 @@ static int androidLuajitInit(lua_State *L) {
 	//dolibrary clears the result so...
 	lua_getglobal(L, "require");	// require
 	lua_pushstring(L, "ffi");		// require ffi
-	s->status = docall(L, 1, 1);	// ffi
+	s->status = safecall(L, 1, 1);	// ffi
 	if (s->status != LUA_OK) {
 		report(L, s->status);
 		return 0;
@@ -658,13 +658,13 @@ static int androidLuajitInit(lua_State *L) {
 #if 0
 	lua_getfield(L, -1, "typeof");
 	lua_pushliteral(L, "void*");
-	s->status = docall(L, 1, 1);	// ffi.typeof'void*' is on the stack
+	s->status = safecall(L, 1, 1);	// ffi.typeof'void*' is on the stack
 	if (s->status != LUA_OK) return 0;
 	lua_setfield(L, LUA_REGISTRYINDEX, "void*");
 
 	lua_getfield(L, -1, "typeof");
 	lua_pushliteral(L, "uintptr_t");
-	s->status = docall(L, 1, 1);	// ffi.typeof'uintptr_t' is on the stack
+	s->status = safecall(L, 1, 1);	// ffi.typeof'uintptr_t' is on the stack
 	if (s->status != LUA_OK) return 0;
 	lua_setfield(L, LUA_REGISTRYINDEX, "uintptr_t");
 #endif
@@ -685,7 +685,7 @@ static int androidLuajitInit(lua_State *L) {
 	}
 
 	// call the loaded function, expect it to return our per-method callback
-	s->status = docall(L, 0, 1);				// main.lua's result
+	s->status = safecall(L, 0, 1);				// main.lua's result
 printf("main.lua compiled with this on top: %s\n", luaL_typename(L, -1));
 	if (s->status != LUA_OK) {
 		report(L, s->status);
@@ -786,7 +786,7 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 
 	lua_pushlightuserdata(L, this);			// main, msg, this
 	lua_pushlightuserdata(L, args);			// main, msg, this, args
-	status = docall(L, 3, 1);
+	status = safecall(L, 3, 1);
 
 	if (status != LUA_OK) {
 		report(L, status);
@@ -798,7 +798,7 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 	// first cast it to uintptr_t (otherwise tonumber will fail)
 	lua_getfield(L, LUA_REGISTRYINDEX, "uintptr_t");		// number, uintptr_t
 	lua_insert(L, -2);										// uintptr_t, number
-	status = docall(L, 1, 1);								// uintptr_t-value
+	status = safecall(L, 1, 1);								// uintptr_t-value
 	if (status != LUA_OK) {
 		report(L, status);
 		return NULL;
