@@ -32,12 +32,12 @@ AAPT2 = $(BUILD_TOOLS_DIR)/aapt2
 # NOTICE `aapt2 compile` works on a normie AndroidManifest.xml while `aapt2 link` does not
 #RESOURCE_DIR = app/src/main/res
 RESOURCE_DIR = nogradle/res
-COMPILED_RESOURCES = _compiled_resources/
-$(COMPILED_RESOURCES):
+COMPILED_RESOURCES = _compiled_resources
+$(COMPILED_RESOURCES): $(shell find $(RESOURCE_DIR) -type f)
 	mkdir -p $(COMPILED_RESOURCES)
 	$(AAPT2) compile \
 		--dir $(RESOURCE_DIR) \
-		-o $(COMPILED_RESOURCES)
+		-o $(COMPILED_RESOURCES)/
 
 # merge manifests
 # nah it's too stupid.  can't find dependencies, docs don't help, Google AI doesn't help ...
@@ -55,20 +55,27 @@ ANDROID_MANIFEST = nogradle/AndroidManifest.xml
 # use aapt2 again to make base.apk
 # this errors that the manifest is missing package, because it's not a merged-manifest
 # this populates _gen/ with io/github/thenumbernine/LuaJIT/ Manifest.java and R.java 
+# _gen/ is the final location
+# but to spare timestamps, first copy to _gentmp/ then cp -ru, then rm _gentmp/
 AAPT_GEN_DIR = _gen
+AAPT_GEN_TMP_DIR = _gentmp
 ASSETS_DIR = app/src/main/assets
 APK_OF_RESOURCES = base.apk
-$(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(COMPILED_RESOURCES) $(shell find $(ASSETS_DIR) -type f)
+$(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(shell find $(COMPILED_RESOURCES) -type f) $(shell find $(ASSETS_DIR) -type f)
 	mkdir -p $(AAPT_GEN_DIR)
+	mkdir -p $(AAPT_GEN_TMP_DIR)
 	$(AAPT2) link \
 		-o $(APK_OF_RESOURCES) \
 		-A $(ASSETS_DIR) \
 		-I $(ANDROID_JAR) \
 		--manifest $(ANDROID_MANIFEST) \
-		--java $(AAPT_GEN_DIR) \
+		--java $(AAPT_GEN_TMP_DIR) \
 		$(COMPILED_RESOURCES)/*.flat
+	cp -ru $(AAPT_GEN_TMP_DIR) $(AAPT_GEN_DIR)
+	-rm -fr $(AAPT_GEN_TMP_DIR)
 
 # now we should compile the java files, now, with R.java 
+# TODO don't overwrite if it's not different, then Make won't constantly rebuild the java.
 
 JAVA_SRC_DIR = app/src/main/java
 # JAVA_SRC_FILES is relative to JAVA_SRC_DIR 
@@ -79,7 +86,7 @@ CLASS_DIR = ./_class
 # dependencies should be all .class files, but that list isn't made until after javac is run, so I'll just go with the files i know it makes
 JAVA_CLASS_FILES = $(patsubst %.java, $(CLASS_DIR)/%.class, $(JAVA_SRC_FILES))
 
-$(CLASS_DIR)/io/github/thenumbernine/LuaJIT/Activity.class: $(JAVA_SRC_DIR)/io/github/thenumbernine/LuaJIT/Activity.java  $(AAPT_GEN_DIR)/io/github/thenumbernine/LuaJIT/R.java
+$(CLASS_DIR)/io/github/thenumbernine/LuaJIT/Activity.class: $(JAVA_SRC_DIR)/io/github/thenumbernine/LuaJIT/Activity.java $(AAPT_GEN_DIR)/io/github/thenumbernine/LuaJIT/R.java
 	mkdir -p $(CLASS_DIR)
 	$(ANDROID_STUDIO_ROOT)/jbr/bin/javac \
 		$(JAVA_FLAGS) \
@@ -139,7 +146,7 @@ $(APK_UNALIGNED_PATH): $(APK_OF_RESOURCES) $(CLASSES_DEX) $(LIBMAIN_SO)
 APK_ALIGNED_PATH = base-aligned.apk
 $(APK_ALIGNED_PATH): $(APK_UNALIGNED_PATH)
 	-rm $(APK_ALIGNED_PATH)
-	$(BUILD_TOOLS_DIR)/zipalign -v -p 4 $(APK_UNALIGNED_PATH) $(APK_ALIGNED_PATH)
+	$(BUILD_TOOLS_DIR)/zipalign -p 4 $(APK_UNALIGNED_PATH) $(APK_ALIGNED_PATH)
 
 APK_SIGNED_PATH = base-signed.apk
 KEYSTORE = $(HOME)/.android/debug.keystore

@@ -83,7 +83,7 @@ local callbacks = {
 			local treeUri = data:getData()
 
 			activity:getContentResolver():takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-		
+
 			local files = {}
 			--[[ androidx method
 			local directory = J.androidx.documentfile.provider.DocumentFile:fromTreeUri(activity, treeUri)
@@ -139,7 +139,7 @@ local callbacks = {
 	end,
 }
 
---]=======] 
+--]=======]
 -- [=======[ attempt at just outputting the out.txt file
 
 local observer
@@ -171,22 +171,38 @@ local callbacks = {
 		--[[ why doesn't Android's Runnable register as a SAM method?
 		local runnable = J.Runnable:_cb(refreshFileContent)
 		--]]
-		-- [[
+		-- [=[
 		local runnable = J.Runnable:_subclass{
+			fields = {
+				textView = {
+					isPublic = true,
+					sig = textView._classpath,
+				},
+			},
 			methods = {
 				run = {
 					isPublic = true,
 					sig = {'void'},
-					--newLuaState = true,	-- back to the old thread but let's be safe? 
+					--[[ without new state:
 					value = function(this)
+					--]]
+					-- [[ with new state
+					newLuaState = true,	-- back to the old thread but let's be safe?
+					value = function(J, this)
+					--]]
+						--[==[ calling to outer Lua state
 						refreshFileContent()
+						--]==]
+						-- [==[ just calling Java
+						this.textView:setText(require 'ext.path' 'out.txt':read() or '')
+						--]==]
 					end,
 				},
 			}
 		}()
-		--]]
+		runnable.textView = textView
+		--]=]
 
-		local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
 		observer = J.android.os.FileObserver:_subclass{
 			-- pass the activity and runnable through java so it doesn't have to cross lua thread states
 			fields = {
@@ -206,7 +222,7 @@ local callbacks = {
 					newLuaState = true,	-- new thread, new lua state
 					value = function(J, this, event, path)	-- newLuaState means 'J' first
 						--[[ don't do this, it will make a new subclass every time the file updates ...
-						runOnUiThread(refreshFileContent)
+						this.activity.runOnUiThread(refreshFileContent)
 						--]]
 						-- [[
 						this.activity:runOnUiThread(this.runnable)
@@ -227,7 +243,7 @@ local callbacks = {
 		if observer then observer:stopWatching() end
 	end,
 }
---]=======] 
+--]=======]
 --[=======[ bluetooth scanner example ... gets back nothing and no errors *shrug*
 local BluetoothDevice = J.android.bluetooth.BluetoothDevice
 
@@ -279,16 +295,16 @@ print('onCreate DONE')
 
 	onDestroy = function(activity)
 		activity.super:onDestroy()
-	
+
 print('unregistering receiver', receiver)
 		activity:unregisterReceiver(receiver)
-		
+
 		if bluetoothAdapter then
 			bluetoothAdapter:cancelDiscovery()
 		end
 	end,
 }
---]=======] 
+--]=======]
 --[=======[  bluetooth le scanner example
 local callbacks = {
 	onCreate = function(activity, savedInstanceState)
@@ -340,7 +356,7 @@ private void scanLeDevice() {
 print('onCreate DONE')
 	end,
 }
---]=======] 
+--]=======]
 return function(methodName, activity, ...)
 	print(methodName, activity, ...)
 	local callback = callbacks[methodName]
