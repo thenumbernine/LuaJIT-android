@@ -58,7 +58,7 @@ ANDROID_MANIFEST = nogradle/AndroidManifest.xml
 AAPT_GEN_DIR = _gen
 ASSETS_DIR = app/src/main/assets
 APK_OF_RESOURCES = base.apk
-$(APK_OF_RESOURCES): $(COMPILED_RESOURCES) $(shell find $(ASSETS_DIR) -type f)
+$(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(COMPILED_RESOURCES) $(shell find $(ASSETS_DIR) -type f)
 	mkdir -p $(AAPT_GEN_DIR)
 	$(AAPT2) link \
 		-o $(APK_OF_RESOURCES) \
@@ -110,6 +110,7 @@ $(APK_UNALIGNED_PATH): $(APK_OF_RESOURCES) $(CLASSES_DEX)
 # use zipalign to align the unsigned apk
 APK_ALIGNED_PATH = base-aligned.apk
 $(APK_ALIGNED_PATH): $(APK_UNALIGNED_PATH)
+	-rm $(APK_ALIGNED_PATH)
 	$(BUILD_TOOLS_DIR)/zipalign -v -p 4 $(APK_UNALIGNED_PATH) $(APK_ALIGNED_PATH)
 
 APK_SIGNED_PATH = base-signed.apk
