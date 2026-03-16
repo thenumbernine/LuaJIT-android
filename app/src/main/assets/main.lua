@@ -35,9 +35,14 @@ ffi.C.setenv('LUA_CPATH', package.cpath, 1)
 --]=]
 
 
--- [=[
+
+-- instead of a bootstrap io loader, how about the old fashioned SDLLuaJIT way of just copying files across?
+-- it works a lot cleaner
+-- but we still need the bootstrap loader to load lua-java to then do this
+-- (unless I want to do the copying in java)
+
 -- setup the asset based package loader:
-local function assetLoader(modname)
+table.insert(package.loaders, function(modname)
 	local reg = debug.getregistry()
 	local java_readAssetPath = reg.java_readAssetPath
 	local java_isAssetPathDir = reg.java_isAssetPathDir
@@ -60,113 +65,14 @@ local function assetLoader(modname)
 	end
 	return "module '"..modname.."' not found:\n\t"
 		..table.concat(reasons, '\n\t')
-end
-table.insert(package.loaders, assetLoader)
-
-
--- [[ just to verify something is there
-local reg = debug.getregistry()
-print'in parent lua state:'
-print('reg.java_readAssetPath', reg.java_readAssetPath)
-print('reg.java_isAssetPathDir', reg.java_isAssetPathDir)
---]]
-
-local main = ffi.load'main'
-
--- [===[ maybe there's an unwritten rule that I can't modify the lua_State while it is in the middle of running my Lua code?
--- because reading the registry field of a cfunction tehre is coming back with number -1, meanwhile debug.getregistry()[key] gets the function fine
-
-local lualib = require 'lua.ffi'	-- needed for lua_State def
-ffi.cdef[[
-int java_isAssetPathDir(lua_State *L);
-int java_readAssetPath(lua_State *L);
-]]
-
---[[ 
-in order for lite-thread to work, the new lua state needs to require files
-but currently all files are retrieved using the assets/ reader
-and a new lua state won't have it
-so hand it off with a subclass
-(you have to do this before ever requiring any lite-threads, i.e. before requiring 
---]]
-
-local LiteThread = require 'thread.lite'
-local NewLiteThread = LiteThread:subclass()
-function NewLiteThread:init(args, ...)
-	if type(args) == 'string' then
-		args = {code=args}
-	elseif type(args) == 'function' then
-		args = {func=args}
-	end
-	
-	local oldinit = args.init
-	args.init = function(thread, ...)
-		-- init the lua state before creating the thread
-		-- pass it the new loader
-		local lua = thread.lua
-		local L = lua.L
-
-		-- need this to require lua.ffi.luajit so I'll just manually define it here ...
-		-- do it before passign assetLoader across so assetLoader can resolve everything
-		lualib.lua_pushcclosure(L, main.java_readAssetPath, 0)
-		lualib.lua_setfield(L, lualib.LUA_REGISTRYINDEX, 'java_readAssetPath')
-		lualib.lua_pushcclosure(L, main.java_isAssetPathDir, 0)
-		lualib.lua_setfield(L, lualib.LUA_REGISTRYINDEX, 'java_isAssetPathDir')
-
---[==[ pass in the C functions
-		lua([[
-local assetLoader = ...
-
-local reg = debug.getregistry()
-print('reg.java_readAssetPath', reg.java_readAssetPath)
-print('reg.java_isAssetPathDir', reg.java_isAssetPathDir)
-
-table.insert(package.loaders, assetLoader)
-]], assetLoader)
---]==]
--- [==[
--- just remake it
-lua[[
-local function assetLoader(modname)
-	local reg = debug.getregistry()
-	local java_readAssetPath = reg.java_readAssetPath
-	local java_isAssetPathDir = reg.java_isAssetPathDir
-	-- return function on success, string on failure
-	local reasons = {}
-	for opt in ('?.lua;?/?.lua'):gmatch'[^;]+' do
-		local fn = opt:gsub('%?', (modname:gsub('%.', '/')))
-		if java_isAssetPathDir(fn) then
-			table.insert(reasons, 'is an asset dir: '..fn)
-		else
-			local data = java_readAssetPath(fn)
-			if not data then
-				table.insert(reasons, 'not an asset path: '..fn)
-			else
-				local res, err = load(data, modname)
-				if res then return res end
-				table.insert(reasons, fn..' '..tostring(err))
-			end
-		end
-	end
-	return "module '"..modname.."' not found:\n\t"
-		..table.concat(reasons, '\n\t')
-end
-table.insert(package.loaders, assetLoader)
-]]
---]==]
-		return oldinit(thread, ...)
-	end
-
-	return LiteThread.init(self, args, ...)
-end
-package.loaded['thread.lite'] = NewLiteThread 
---]===]
+end)
 
 
 -- setup the JNI env object:
 
 require 'java.ffi.jni'	-- cdef for JNIEnv
 ffi.cdef[[JNIEnv * jniEnv;]]
+local main = ffi.load'main'
 local JNIEnv = require 'java.jnienv'
 local J = JNIEnv{
 	ptr = main.jniEnv,
@@ -176,6 +82,82 @@ print('J', J)
 package.loaded.java = J
 package.loaded['java.java'] = J
 --]=]
+
+
+-- now that we're here with lua-java, copy assets into files unless told otherwise
+-- pro: now sub-lua-states can load files correctly
+-- con: few seconds initial load time.  have to wipe files/ or at least the lock file when you update things.
+do
+	ffi.cdef[[jobject androidActivity;]]
+	local activity = J:_fromJObject(main.androidActivity)
+	local filesDir = activity:getFilesDir()
+	local File = J.java.io.File
+	local lockFile = File(filesDir, 'dontcopyfromassets')
+	if not lockFile:exists() then
+		local function copyAssets(assets, f, appFilesDir)
+			local toFile = File(appFilesDir .. '/' .. f)
+			local list = assets:list(f)
+			local n = #list
+			if n == 0 then
+				local is = assets:open(f)
+				local os = J.java.io.FileOutputStream(toFile)
+
+				local buf = J:_newArray('byte', 16384)
+				while true do
+					local res = is:read(buf)
+					if res <= 0 then break end
+					os:write(buf, 0, res)
+				end
+
+				is:close()
+				os:flush()
+				os:close()
+			else
+				toFile:mkdirs()
+				for subf in list:_iter() do
+					copyAssets(
+						assets,
+						f == '' and subf or f .. '/' .. subf,
+						appFilesDir
+					)
+				end
+			end
+		end
+		copyAssets(
+			activity:getAssets(),
+			'',
+			tostring(filesDir:getAbsolutePath())
+		)
+		lockFile:createNewFile()
+	end
+	-- tada, now we have file access
+	-- now sub lua states don't need the asset loader
+	-- now this lua state doesn't even need it.
+	table.remove(package.loaders)
+
+	local projectDir = tostring(filesDir:getAbsolutePath())
+
+	-- setup LUA_PATH and LUA_CPATH here
+	package.path = table.concat({
+		'./?.lua',
+		projectDir..'/?.lua',
+		projectDir..'/?/?.lua',
+	}, ';')
+	package.cpath = table.concat({
+		'./?.so',
+		projectDir..'/?.so',
+		projectDir..'/?/init.so',
+	}, ';')
+
+	-- switch to pure-lua require so i can see errors from files that fail
+	--require 'ext.require'(_G)
+
+	ffi.cdef[[int setenv(const char*,const char*,int);]]
+	-- let subsequent invoked lua processes know where to find things
+	ffi.C.setenv('LUA_PATH', package.path, 1)
+	ffi.C.setenv('LUA_CPATH', package.cpath, 1)
+end
+
 
 print('BEGIN android main.lua')
 local activityMethodHandler = require 'luajit-android'
