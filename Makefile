@@ -23,7 +23,8 @@ JAVA_FLAGS += -g
 
 
 
-APK_SIGNED_PATH = base-signed.apk
+APK_DIR = _apk
+APK_SIGNED_PATH = $(APK_DIR)/base-signed.apk
 .PHONY: all
 all: $(APK_SIGNED_PATH)
 
@@ -31,7 +32,7 @@ all: $(APK_SIGNED_PATH)
 # what do I even need this stupid style bullshit for?
 AAPT2 = $(BUILD_TOOLS_DIR)/aapt2
 
-# Use aapt2 to compile resources into compiled_resources.zip 
+# Use aapt2 to compile resources into compiled_resources.zip
 # This produces a bunch of files $(dir)_$(file).xml.flat based on res/$(dir)/$(file).xml ... smfh what a stupid build process
 # NOTICE `aapt2 compile` works on a normie AndroidManifest.xml while `aapt2 link` does not
 #RESOURCE_DIR = app/src/main/res
@@ -58,16 +59,17 @@ ANDROID_MANIFEST = nogradle/AndroidManifest.xml
 
 # use aapt2 again to make base.apk
 # this errors that the manifest is missing package, because it's not a merged-manifest
-# this populates _gen/ with io/github/thenumbernine/LuaJIT/ Manifest.java and R.java 
+# this populates _gen/ with io/github/thenumbernine/LuaJIT/ Manifest.java and R.java
 # _gen/ is the final location
 # but to spare timestamps, first copy to _gentmp/ then cp -ru, then rm _gentmp/
 AAPT_GEN_DIR = _gen
 AAPT_GEN_TMP_DIR = _gentmp
 ASSETS_DIR = app/src/main/assets
-APK_OF_RESOURCES = base.apk
+APK_OF_RESOURCES = $(APK_DIR)/base.apk
 $(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(COMPILED_RESOURCES) $(shell find $(ASSETS_DIR) -type f)
 	mkdir -p $(AAPT_GEN_DIR)
 	mkdir -p $(AAPT_GEN_TMP_DIR)
+	mkdir -p $(APK_DIR)
 	$(AAPT2) link \
 		-o $(APK_OF_RESOURCES) \
 		-A $(ASSETS_DIR) \
@@ -75,17 +77,14 @@ $(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(COMPILED_RESOURCES) $(shell find $(AS
 		--manifest $(ANDROID_MANIFEST) \
 		--java $(AAPT_GEN_TMP_DIR) \
 		$(COMPILED_RESOURCES)/*.flat
+	# now we should compile the java files, now, with R.java
+	# don't overwrite if it's not different, then Make won't constantly rebuild the java.
 	cp -ru $(AAPT_GEN_TMP_DIR)/* $(AAPT_GEN_DIR)/
 	-rm -fr $(AAPT_GEN_TMP_DIR)
 
-# let make know that the resources apk makes R.java...
-$(AAPT_GEN_DIR)/io/github/thenumbernine/R.java: $(APK_OF_RESOURCES)
-
-# now we should compile the java files, now, with R.java 
-# TODO don't overwrite if it's not different, then Make won't constantly rebuild the java.
 
 JAVA_SRC_DIR = app/src/main/java
-# JAVA_SRC_FILES is relative to JAVA_SRC_DIR 
+# JAVA_SRC_FILES is relative to JAVA_SRC_DIR
 JAVA_SRC_FILES = io/github/thenumbernine/LuaJIT/Activity.java
 
 CLASS_DIR = ./_class
@@ -143,14 +142,14 @@ $(LIBMAIN_SO): $(OBJ_DIR)/luajit.o
 
 # now add the dex to the apk
 
-APK_UNALIGNED_PATH = base-unaligned.apk
+APK_UNALIGNED_PATH = $(APK_DIR)/base-unaligned.apk
 $(APK_UNALIGNED_PATH): $(APK_OF_RESOURCES) $(CLASSES_DEX) $(LIBMAIN_SO)
 	cp $(APK_OF_RESOURCES) $(APK_UNALIGNED_PATH)
 	zip -j $(APK_UNALIGNED_PATH) $(CLASSES_DEX)
 	zip -r -0 -u $(APK_UNALIGNED_PATH) $(LIB_DIR)/
 
 # use zipalign to align the unsigned apk
-APK_ALIGNED_PATH = base-aligned.apk
+APK_ALIGNED_PATH = $(APK_DIR)/base-aligned.apk
 $(APK_ALIGNED_PATH): $(APK_UNALIGNED_PATH)
 	-rm $(APK_ALIGNED_PATH)
 	$(BUILD_TOOLS_DIR)/zipalign -p 4 $(APK_UNALIGNED_PATH) $(APK_ALIGNED_PATH)
@@ -186,8 +185,4 @@ clean:
 		$(CLASSES_DEX_DIR) \
 		$(AAPT_GEN_DIR) \
 		$(AAPT_GEN_TMP_DIR) \
-		$(APK_OF_RESOURCES) \
-		$(APK_UNALIGNED_PATH) \
-		$(APK_ALIGNED_PATH) \
-		$(APK_SIGNED_PATH) \
-		$(APK_SIGNED_PATH).idsig
+		$(APK_DIR)
