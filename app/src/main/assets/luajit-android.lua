@@ -163,12 +163,14 @@ local callbacks = {
 
         activity:setContentView(scrollView)
 
-		-- [=[
+		--[=[
 print('creating ObserverRunnable...')
 		local ObserverRunnable = J.Runnable:_subclass{
+			isPublic = true,
 			fields = {
 				textView = {
 					isPublic = true,
+					isStatic = true,
 					sig = textView._classpath,
 				},
 			},
@@ -178,26 +180,29 @@ print('creating ObserverRunnable...')
 					sig = {'void'},
 					newLuaState = true,	-- back to the old thread but let's be safe?
 					value = function(J, this)
-print('in runOnUiThread runnable')
 						-- refreshFileContent:
 						this.textView:setText(require 'ext.path' 'out.txt':read() or '')
 					end,
 				},
 			}
 		}
+		ObserverRunnable.textView = textView
 print('created ObserverRunnable.')
 
+print('activity._classpath', activity._classpath)
+print('ObserverRunnable._classpath', ObserverRunnable._classpath)
 print('creating FileObserver...')
 		local Observer = J.android.os.FileObserver:_subclass{
-			-- pass the activity and runnable through java so it doesn't have to cross lua thread states
+			isPublic = true,
 			fields = {
 				activity = {
 					isPublic = true,
 					sig = activity._classpath,
 				},
-				textView = {
+				-- if I pass runnable in here, lua-java tries to query its class's reflection and android segfaults because android is retarded
+				runnableClass = {
 					isPublic = true,
-					sig = textView._classpath,
+					sig = 'java.lang.Class',
 				},
 			},
 			methods = {
@@ -206,11 +211,15 @@ print('creating FileObserver...')
 					sig = {'void', 'int', 'java.lang.String'},
 					newLuaState = true,	-- new thread, new lua state
 					value = function(J, this, event, path)	-- newLuaState means 'J' first
-print('in observer:onEvent')
-						local runnable = ObserverRunnable()
-						runnable.textView = this.textView
-
-						this.activity:runOnUiThread(runnable)
+						
+						--[[
+						this.activity:runOnUiThread(this.runnable)
+						--]]
+						-- [[ hmm segfaulting but outside of this call
+						local ctor = this.runnableClass:getDeclaredConstructor()
+						local runnable = ctor:newInstance()
+						this.activity:runOnUiThread(runnable:_cast'java.lang.Runnable')
+						--]]
 					end,
 				},
 			},
@@ -219,7 +228,7 @@ print('created FileObserver.')
 		local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
 		local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
 		observer.activity = activity
-		observer.textView = textView
+		observer.runnableClass = ObserverRunnable.class
 
 		-- refreshFileContent:
 		textView:setText(require 'ext.path' 'out.txt':read() or '')
@@ -230,8 +239,24 @@ print('created FileObserver.')
 		
 print"onCreate DONE"
 		--]=]
-		-- [=[ same but without FileObserver, just run a thread and watch the file and update
+		-- [=[ same but without FileObserver, just run a callback and watch the file and update
+		local Looper = J.android.os.Looper
+		handler = J.android.os.Handler(Looper:getMainLooper())
+		logUpdater = J.Runnable(function()
+			textView:setText(require 'ext.path' 'out.txt':read() or '')
+			handler:postDelayed(this, 2000)
+		end)
 		--]=]
+	end,
+
+	onResume = function(activity)
+		activity.super:onResume()
+		handler:post(logUpdater)
+	end,
+
+	onPause = function(activity)
+		activity.super:onPause()
+		handler:removeCallbacks(logUpdater)
 	end,
 
 	onDestroy = function(activity)
