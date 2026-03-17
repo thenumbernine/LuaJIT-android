@@ -240,10 +240,17 @@ print('created FileObserver.')
 print"onCreate DONE"
 		--]=]
 		-- [=[ same but without FileObserver, just run a callback and watch the file and update
+		local logFile = J.java.io.File'out.txt'
+		local lastTextTime = logFile:lastModified()
+		textView:setText(require 'ext.path' 'out.txt':read() or '')
 		local Looper = J.android.os.Looper
 		handler = J.android.os.Handler(Looper:getMainLooper())
 		logUpdater = J.Runnable(function()
-			textView:setText(require 'ext.path' 'out.txt':read() or '')
+			local thisTextTime = logFile:lastModified()
+			if thisTextTime > lastTextTime then
+				lastTextTime = thisTextTime
+				textView:setText(require 'ext.path' 'out.txt':read() or '')
+			end
 			handler:postDelayed(this, 2000)
 		end)
 		--]=]
