@@ -22,9 +22,13 @@ JAVA_FLAGS += -g
 
 
 
+
+APK_SIGNED_PATH = base-signed.apk
+.PHONY: all
+all: $(APK_SIGNED_PATH)
+
+
 # what do I even need this stupid style bullshit for?
-
-
 AAPT2 = $(BUILD_TOOLS_DIR)/aapt2
 
 # Use aapt2 to compile resources into compiled_resources.zip 
@@ -61,7 +65,7 @@ AAPT_GEN_DIR = _gen
 AAPT_GEN_TMP_DIR = _gentmp
 ASSETS_DIR = app/src/main/assets
 APK_OF_RESOURCES = base.apk
-$(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(shell find $(COMPILED_RESOURCES) -type f) $(shell find $(ASSETS_DIR) -type f)
+$(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(COMPILED_RESOURCES) $(shell find $(ASSETS_DIR) -type f)
 	mkdir -p $(AAPT_GEN_DIR)
 	mkdir -p $(AAPT_GEN_TMP_DIR)
 	$(AAPT2) link \
@@ -71,8 +75,11 @@ $(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(shell find $(COMPILED_RESOURCES) -typ
 		--manifest $(ANDROID_MANIFEST) \
 		--java $(AAPT_GEN_TMP_DIR) \
 		$(COMPILED_RESOURCES)/*.flat
-	cp -ru $(AAPT_GEN_TMP_DIR) $(AAPT_GEN_DIR)
+	cp -ru $(AAPT_GEN_TMP_DIR)/* $(AAPT_GEN_DIR)/
 	-rm -fr $(AAPT_GEN_TMP_DIR)
+
+# let make know that the resources apk makes R.java...
+$(AAPT_GEN_DIR)/io/github/thenumbernine/R.java: $(APK_OF_RESOURCES)
 
 # now we should compile the java files, now, with R.java 
 # TODO don't overwrite if it's not different, then Make won't constantly rebuild the java.
@@ -148,7 +155,6 @@ $(APK_ALIGNED_PATH): $(APK_UNALIGNED_PATH)
 	-rm $(APK_ALIGNED_PATH)
 	$(BUILD_TOOLS_DIR)/zipalign -p 4 $(APK_UNALIGNED_PATH) $(APK_ALIGNED_PATH)
 
-APK_SIGNED_PATH = base-signed.apk
 KEYSTORE = $(HOME)/.android/debug.keystore
 $(APK_SIGNED_PATH): $(APK_ALIGNED_PATH)
 	cp $(APK_ALIGNED_PATH) $(APK_SIGNED_PATH)
@@ -159,9 +165,6 @@ $(APK_SIGNED_PATH): $(APK_ALIGNED_PATH)
 		--key-pass pass:android \
 		$(APK_SIGNED_PATH)
 	$(BUILD_TOOLS_DIR)/apksigner verify --verbose --print-certs $(APK_SIGNED_PATH)
-
-.PHONY: all
-all: $(APK_SIGNED_PATH)
 
 .PHONY: install
 install: $(APK_SIGNED_PATH)
@@ -182,6 +185,7 @@ clean:
 		$(CLASS_DIR) \
 		$(CLASSES_DEX_DIR) \
 		$(AAPT_GEN_DIR) \
+		$(AAPT_GEN_TMP_DIR) \
 		$(APK_OF_RESOURCES) \
 		$(APK_UNALIGNED_PATH) \
 		$(APK_ALIGNED_PATH) \
