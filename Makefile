@@ -169,6 +169,10 @@ $(APK_SIGNED_PATH): $(APK_ALIGNED_PATH)
 install: $(APK_SIGNED_PATH)
 	adb install $(APK_SIGNED_PATH)
 
+.PHONY: uninstall
+uninstall:
+	adb uninstall io.github.thenumbernine.LuaJIT
+
 .PHONY: run
 run:
 	adb shell am start -n io.github.thenumbernine.LuaJIT/io.github.thenumbernine.LuaJIT.Activity

@@ -147,25 +147,8 @@ local callbacks = {
 	onCreate = function(activity, savedInstanceState)
 		activity.super:onCreate(savedInstanceState)
 
-do
-	local tolua = require 'ext.tolua'
-	local table = require 'ext.table'
-	-- try to figure out why Runnable isn't SAM ...
-	local cl = J.Runnable
-	print('fields:')
-	for name,fieldsForName in pairs(cl._fields) do
-		for _,field in ipairs(fieldsForName) do
-			print(tolua(table.union({}, field, {_env=false})))
-		end
-	end
-	print('methods:')
-	for name,methodsForName in pairs(cl._methods) do
-		for _,method in ipairs(methodsForName) do
-			print(tolua(table.union({}, method, {_env=false})))
-		end
-	end
-	return
-end
+do return end
+
 		local ViewGroup = J.android.view.ViewGroup
 
         local textView = J.android.widget.TextView(activity)

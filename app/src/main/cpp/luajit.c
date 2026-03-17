@@ -111,49 +111,216 @@ int java_readAssetPath(lua_State *L) {
 	return 1;
 }
 
-static int androidLuajitInit(lua_State *L) {
-	struct Smain *s = &smain;
-	mainL = L;
+/*
+I couldve done this better I'm sure
+here's the Lua code I was implementing:
 
+	table.insert(package.loaders, function(modname)
+		local reg = debug.getregistry()
+		local java_readAssetPath = reg.java_readAssetPath
+		local java_isAssetPathDir = reg.java_isAssetPathDir
+		-- return function on success, string on failure
+		local reasons = {}
+		for opt in ('?.lua;?/?.lua'):gmatch'[^;]+' do
+			local fn = opt:gsub('%?', (modname:gsub('%.', '/')))
+			if java_isAssetPathDir(fn) then
+				table.insert(reasons, 'is an asset dir: '..fn)
+			else
+				local data = java_readAssetPath(fn)
+				if not data then
+					table.insert(reasons, 'not an asset path: '..fn)
+				else
+					local res, err = load(data, modname)
+					if res then return res end
+					table.insert(reasons, fn..' '..tostring(err))
+				end
+			end
+		end
+		return "module '"..modname.."' not found:\n\t"
+			..table.concat(reasons, '\n\t')
+	end)
+*/
+int androidAssetLoader(lua_State *L) {
+	if (!lua_isstring(L, 1)) {		// stack: args:[mod]
+		luaL_error(L, "expected string");
+	}
+	lua_settop(L, 1);
+	int modloc = 1;	//lua_gettop(L);
+
+	lua_getglobal(L, "string");		// stack: [mod], string
+	lua_getfield(L, -1, "gsub");	// stack: [mod], string, gsub
+	lua_remove(L, -2);				// stack: [mod], gsub
+	int gsubloc = lua_gettop(L);
+
+	{
+		lua_getglobal(L, "table");		// stack: [mod], gsub, table
+		int tableloc = lua_gettop(L);
+		lua_getfield(L, tableloc, "insert");	// stack: [mod], gsub, table, table.insert
+		lua_getfield(L, tableloc, "concat");	// stack: [mod], gsub, table, table.insert, table.concat
+		lua_remove(L, tableloc);				// stack: [mod], gsub, insert, concat
+	}
+	int concatloc = lua_gettop(L);
+	int insertloc = concatloc-1;
+
+	lua_newtable(L);				// stack: [mod], [gsub, insert, concat, reasons]
+	int reasonsloc = lua_gettop(L);
+
+	// stack: args:[mod], locals:[gsub, insert, concat, reasons]
+	char const * patterns[] = {
+		"?.lua",
+		"?/?.lua",
+	};
+#define countof(x)	(sizeof(x)/sizeof(*(x)))
+	for (int i = 0; i < countof(patterns); ++i) {
+		lua_pushvalue(L, gsubloc);		// stack: [args&locals], gsub
+		lua_pushstring(L, patterns[i]);	// stack: [args&locals], gsub, patterns[i]
+		lua_pushliteral(L, "%?");		// stack: [args&locals], gsub, patterns[i], "%?"
+
+		lua_pushvalue(L, gsubloc);		// stack: [args&locals], gsub, patterns[i], "%?", gsub
+		lua_pushvalue(L, 1);			// stack: [args&locals], gsub, patterns[i], "%?", gsub, mod
+		lua_pushliteral(L, "%.");		// stack: [args&locals], gsub, patterns[i], "%?", gsub, mod, "%."
+		lua_pushliteral(L, "/");		// stack: [args&locals], gsub, patterns[i], "%?", gsub, mod, "%.", "/"
+		lua_call(L, 3, 1);				// stack: [args&locals], gsub, patterns[i], "%?", mod:gsub('%.','/')
+
+		lua_call(L, 3, 1);				// stack: [args&locals], fn = opt:gsub('%?',(modname:gsub('%.','/')))
+		int fnloc = lua_gettop(L);
+
+		lua_pushcfunction(L, java_isAssetPathDir);	// stack: [args&locals], fn, java_isAssetPathDir
+		lua_pushvalue(L, fnloc);					// stack: [args&locals], fn, java_isAssetPathDir, fn
+		lua_call(L, 1, 1);							// stack: [args&locals], fn, isdir?
+		if (lua_toboolean(L, -1)) {
+			// is directory
+			lua_pop(L, 1);							// stack: [args&locals], fn
+			
+			char const * errmsg = "is an asset dir: ";
+			lua_pushvalue(L, insertloc);			// stack: [args&locals], fn, insert
+			lua_pushvalue(L, reasonsloc);			// stack: [args&locals], fn, insert, reasons
+			lua_pushstring(L, errmsg);				// stack: [args&locals], fn, insert, reasons, "is an asset dir: "
+			lua_pushvalue(L, fnloc);				// stack: [args&locals], fn, insert, reasons, "is an asset dir: ", fn
+			lua_concat(L, 2);						// stack: [args&locals], fn, insert, reasons, "is an asset dir: "..fn
+			lua_call(L, 2, 0);						// stack: [args&locals], fn 	| table.insert(reasons, "is an asset dir: "..fn)
+			lua_pop(L, 1);							// stack: [args&locals]
+		} else {
+			// is file
+			lua_pop(L, 1);								// stack: [args&locals], fn
+			lua_pushcfunction(L, java_readAssetPath);	// stack: [args&locals], fn, java_readAssetPath
+			lua_pushvalue(L, fnloc);					// stack: [args&locals], fn, java_readAssetPath, fn
+			lua_call(L, 1, 1);							// stack: [args&locals], fn, data = java_readAssetPath(fn)
+			if (!lua_toboolean(L, -1)) {
+				// not a file
+				lua_pop(L, 1);							// stack: [args&locals], fn
+				
+				char const * errmsg = "not an asset path: ";
+				lua_pushvalue(L, insertloc);
+				lua_pushvalue(L, reasonsloc);
+				lua_pushstring(L, errmsg);
+				lua_pushvalue(L, fnloc);
+				lua_concat(L, 2);
+				lua_call(L, 2, 0);
+				lua_pop(L, 1);
+			} else {
+				// is a file
+				lua_getglobal(L, "load");				// stack: [args&locals], fn, data, load
+				lua_insert(L, -2);						// stack: [args&locals], fn, load, data
+				lua_pushvalue(L, modloc);				// stack: [args&locals], fn, load, data, mod
+				lua_call(L, 2, 2);						// stack: [args&locals], fn, result, errmsg
+				if (lua_toboolean(L, -2)) {
+					// got a result
+					lua_pop(L, 1);
+					return 1;
+				} else {
+					// got an error
+					int errmsgloc = lua_gettop(L);
+
+					lua_pushvalue(L, insertloc);			// stack: [args&locals], fn, result, errmsg, insert
+					lua_pushvalue(L, reasonsloc);			// stack: [args&locals], fn, result, errmsg, insert, reasons
+					lua_pushvalue(L, fnloc);				// stack: [args&locals], fn, result, errmsg, insert, reasons, fn
+					lua_pushliteral(L, " ");				// stack: [args&locals], fn, result, errmsg, insert, reasons, fn, " "
+
+					lua_getglobal(L, "tostring");			// stack: [args&locals], fn, result, errmsg, insert, reasons, fn, " ", tostring
+					lua_pushvalue(L, errmsgloc);			// stack: [args&locals], fn, result, errmsg, insert, reasons, fn, " ", tostring, errmsg
+					lua_call(L, 1, 1);						// stack: [args&locals], fn, result, errmsg, insert, reasons, fn, " ", tostring(errmsg)
+					
+					lua_concat(L, 3);						// stack: [args&locals], fn, result, errmsg, insert, reasons, fn.." "..tostring(errmsg)
+					lua_call(L, 2, 0);						// stack: [args&locals], fn, result, errmsg 	| table.insert(reasons, fn.." "..tostring(errmsg))
+					lua_pop(L, 3);							// stack: [args&locals]
+				}
+			}
+		}
+	}
+
+	// stack: [args&locals]
+
+	lua_pushliteral(L, "module '");				// stack: [args&locals] "module '"
+	lua_pushvalue(L, modloc);					// stack: [args&locals] "module '", mod
+	lua_pushliteral(L, "' not found:\n\t");		// stack: [args&locals] "module '", mod, "' not found:\n\t"
+
+	lua_pushvalue(L, concatloc);		// stack: [args&locals] "module '", mod, "' not found:\n\t", concat
+	lua_pushvalue(L, reasonsloc);		// stack: [args&locals] "module '", mod, "' not found:\n\t", concat, reasons
+	lua_pushliteral(L, "\n\t");			// stack: [args&locals] "module '", mod, "' not found:\n\t", concat, reasons, "\n\t"
+	lua_call(L, 2, 1);					// stack: [args&locals] "module '", mod, "' not found:\n\t", reasons:concat'\n\t'
+
+	lua_concat(L, 4);					// stack: [args&locals] "module '"..mod.."' not found:\n\t"..reasons:concat'\n\t'
+	return 1;
+}
+
+/*
+run this per new Lua state
+it does the following:
+- setup initial libs
+- set ffi.os = Android
+- add the asset loader
+*/
+int androidLuajitInitState(lua_State *L) {
 	lua_gc(L, LUA_GCSTOP, 0);
-	luaL_openlibs(L);				//
+	luaL_openlibs(L);				// stack:
 	lua_gc(L, LUA_GCRESTART, -1);
 
 	// change ffi.os to Android
 	//dolibrary clears the result so...
-	lua_getglobal(L, "require");	// require
-	lua_pushstring(L, "ffi");		// require ffi
-	s->status = safecall(L, 1, 1);	// ffi
-	if (s->status != LUA_OK) {
-		report(L, s->status);
+	lua_getglobal(L, "require");	// stack: require
+	lua_pushstring(L, "ffi");		// stack: require ffi
+	int status = safecall(L, 1, 1);	// stack: ffi
+	if (status != LUA_OK) {
+		report(L, status);
 		return 0;
 	}
 
-	lua_pushliteral(L, "Android");	// ffi Android
-	lua_setfield(L, -2, "os");		// ffi
+	lua_pushliteral(L, "Android");	// stack: ffi Android
+	lua_setfield(L, -2, "os");		// stack: ffi
 
-#if 0
-	lua_getfield(L, -1, "typeof");
-	lua_pushliteral(L, "void*");
-	s->status = safecall(L, 1, 1);	// ffi.typeof'void*' is on the stack
-	if (s->status != LUA_OK) return 0;
-	lua_setfield(L, LUA_REGISTRYINDEX, "void*");
+	lua_pop(L, 1);					// stack:
 
-	lua_getfield(L, -1, "typeof");
-	lua_pushliteral(L, "uintptr_t");
-	s->status = safecall(L, 1, 1);	// ffi.typeof'uintptr_t' is on the stack
-	if (s->status != LUA_OK) return 0;
-	lua_setfield(L, LUA_REGISTRYINDEX, "uintptr_t");
-#endif
+printf("%s: %d\n", __FILE__, __LINE__);
+	lua_getglobal(L, "table");					// stack: table
+printf("%s: %d\n", __FILE__, __LINE__);
+	lua_getfield(L, -1, "insert");				// stack: table, table.insert
+printf("%s: %d\n", __FILE__, __LINE__);
+	lua_remove(L, -2);							// stack: table.insert
+printf("%s: %d\n", __FILE__, __LINE__);
+	lua_getglobal(L, "package");				// stack: table.insert, package
+printf("%s: %d\n", __FILE__, __LINE__);
+	lua_getfield(L, -1, "loaders");				// stack: table.insert, package, package.loaders
+printf("%s: %d\n", __FILE__, __LINE__);
+	lua_remove(L, -2);							// stack: table.insert, package.loaders
+printf("%s: %d\n", __FILE__, __LINE__);
+	lua_pushcfunction(L, androidAssetLoader);	// stack: table.insert, package.loaders, androidAssetLoader
+printf("%s: %d\n", __FILE__, __LINE__);
+	lua_call(L, 2, 0);							// stack:
+printf("%s: %d\n", __FILE__, __LINE__);
 
-	lua_pop(L, 1);					//
+	return 0;
+}
 
-	// while we're here, let's make a function that calls into java and pulls down files from the apk
-	lua_pushcfunction(L, java_readAssetPath);		// java_readAssetPath
-	lua_setfield(L, LUA_REGISTRYINDEX, "java_readAssetPath");
+/* 
+run this once per app starting
+it launches main.lua and gets the callback for the Activity methods
+*/
+static int androidLuajitStartApp(lua_State *L) {
+	struct Smain *s = &smain;
+	mainL = L;
 
-	lua_pushcfunction(L, java_isAssetPathDir);		// java_isAssetPathDir
-	lua_setfield(L, LUA_REGISTRYINDEX, "java_isAssetPathDir");
+	androidLuajitInitState(L);
 
 	s->status = luaL_loadfile(L, "main.lua");		// main.lua's callback
 	if (s->status != LUA_OK) {
@@ -236,7 +403,7 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 		return 0;
 	}
 
-	int status = lua_cpcall(L, androidLuajitInit, NULL);
+	int status = lua_cpcall(L, androidLuajitStartApp, NULL);
 	report(L, status);
 
 	return (jlong)L;
@@ -269,18 +436,6 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 		report(L, status);
 		return NULL;
 	}
-
-#if 0
-	// this gets a cdata, so ...
-	// first cast it to uintptr_t (otherwise tonumber will fail)
-	lua_getfield(L, LUA_REGISTRYINDEX, "uintptr_t");		// number, uintptr_t
-	lua_insert(L, -2);										// uintptr_t, number
-	status = safecall(L, 1, 1);								// uintptr_t-value
-	if (status != LUA_OK) {
-		report(L, status);
-		return NULL;
-	}
-#endif
 
 	jobject objres = NULL;
 	if (!lua_isnil(L, -1)) {
