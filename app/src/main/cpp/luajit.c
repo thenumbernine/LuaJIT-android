@@ -270,6 +270,33 @@ it does the following:
 - setup initial libs
 - set ffi.os = Android
 - add the asset loader
+
+so I'm doing this in lua-lua's Lua:init to make sure all new sub-Lua-states have the asset loader:
+
+	-- BEGIN PATCH for luajit-android to insert the android asset loader into any newly created Lua states
+	do
+		local main = ffi.load'main'
+		ffi.cdef[[int androidLuajitInitState(void *L);]]
+		main.androidLuajitInitState(self.L)
+
+		-- now that the asset loader is setup,
+		-- load JNI and set the android JNI as our `require "java"`
+		self[=[
+require 'java.ffi.jni'	-- cdef for JNIEnv
+ffi.cdef[[JNIEnv * jniEnv;]]
+local JNIEnv = require 'java.jnienv'
+local main = ffi.load'main'
+local J = JNIEnv{
+	ptr = main.jniEnv,
+	usingAndroidJNI = true,
+}
+print('J', J)
+package.loaded.java = J
+package.loaded['java.java'] = J
+]=]
+	end
+	-- END PATCH for luajit-android
+
 */
 int androidLuajitInitState(lua_State *L) {
 	// change ffi.os to Android

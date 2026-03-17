@@ -40,35 +40,6 @@ ffi.C.setenv('LUA_PATH', package.path, 1)
 ffi.C.setenv('LUA_CPATH', package.cpath, 1)
 --]=]
 
-
---[=[ I don't need to copy all files over for sub-lua-states if I can shim in the asset loader into the sub-lua-states ...
-do
-	local function modifySubLuas()
-		-- but what about states-within-states ... ?
-		local ffi = require 'ffi'
-		local main = ffi.load'main'
-		ffi.cdef[[
-int androidLuajitInitState(void *L);
-]]
-		local Lua = require 'lua'
-		local oldinit = Lua.init
-		Lua.init = function(self, ...)
-			oldinit(self, ...)
-			-- set ffi.os, setup asset loader:
-			main.androidLuajitInitState(self.L)
-			-- now modify its sub-Lua?  nah that'd infinitely recurse ...
-			-- hmm but we do need as many levels as thread-invocation-depth ...
-			-- if only I could replace luaL_newstate or luaL_openlibs to do this ...
-			-- maybe that is the only answer, to do that in libluajit.so?
-		end
-		package.loaded['lua'] = Lua
-		package.loaded['lua.lua'] = Lua
-	end
-	modifySubLuas()
-end
---]=]
-
-
 -- setup the JNI env object:
 
 require 'java.ffi.jni'	-- cdef for JNIEnv

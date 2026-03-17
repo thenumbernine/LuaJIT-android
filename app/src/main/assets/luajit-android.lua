@@ -147,8 +147,6 @@ local callbacks = {
 	onCreate = function(activity, savedInstanceState)
 		activity.super:onCreate(savedInstanceState)
 
-do return end
-
 		local ViewGroup = J.android.view.ViewGroup
 
         local textView = J.android.widget.TextView(activity)
@@ -166,6 +164,7 @@ do return end
         activity:setContentView(scrollView)
 
 		-- [=[
+print('creating ObserverRunnable...')
 		local ObserverRunnable = J.Runnable:_subclass{
 			fields = {
 				textView = {
@@ -186,7 +185,9 @@ print('in runOnUiThread runnable')
 				},
 			}
 		}
+print('created ObserverRunnable.')
 
+print('creating FileObserver...')
 		local Observer = J.android.os.FileObserver:_subclass{
 			-- pass the activity and runnable through java so it doesn't have to cross lua thread states
 			fields = {
@@ -214,6 +215,7 @@ print('in observer:onEvent')
 				},
 			},
 		}
+print('created FileObserver.')
 		local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
 		local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
 		observer.activity = activity
@@ -225,6 +227,8 @@ print('in observer:onEvent')
 		-- this gets a weird error:
 		-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
 		observer:startWatching()
+		
+print"onCreate DONE"
 		--]=]
 		-- [=[ same but without FileObserver, just run a thread and watch the file and update
 		--]=]
