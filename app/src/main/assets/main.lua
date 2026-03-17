@@ -41,76 +41,30 @@ ffi.C.setenv('LUA_CPATH', package.cpath, 1)
 --]=]
 
 
-local main = ffi.load'main'
-
 --[=[ I don't need to copy all files over for sub-lua-states if I can shim in the asset loader into the sub-lua-states ...
 do
-
-	local lualib = require 'lua.ffi'	-- needed for lua_State def
-	ffi.cdef[[
-int java_isAssetPathDir(lua_State *L);
-int java_readAssetPath(lua_State *L);
+	local function modifySubLuas()
+		-- but what about states-within-states ... ?
+		local ffi = require 'ffi'
+		local main = ffi.load'main'
+		ffi.cdef[[
+int androidLuajitInitState(void *L);
 ]]
-
-	--[[ 
-	in order for lite-thread to work, the new lua state needs to require files
-	but currently all files are retrieved using the assets/ reader
-	and a new lua state won't have it
-	so hand it off with a subclass
-	(you have to do this before ever requiring any lite-threads, i.e. before requiring 
-	--]]
-
-	local LiteThread = require 'thread.lite'
-	local NewLiteThread = LiteThread:subclass()
-	function NewLiteThread:init(args, ...)
-		if type(args) == 'string' then
-			args = {code=args}
-		elseif type(args) == 'function' then
-			args = {func=args}
+		local Lua = require 'lua'
+		local oldinit = Lua.init
+		Lua.init = function(self, ...)
+			oldinit(self, ...)
+			-- set ffi.os, setup asset loader:
+			main.androidLuajitInitState(self.L)
+			-- now modify its sub-Lua?  nah that'd infinitely recurse ...
+			-- hmm but we do need as many levels as thread-invocation-depth ...
+			-- if only I could replace luaL_newstate or luaL_openlibs to do this ...
+			-- maybe that is the only answer, to do that in libluajit.so?
 		end
-		
-		local oldinit = args.init
-		args.init = function(thread, ...)
-			local lua = thread.lua
-			local L = lua.L
-
-			lualib.lua_pushcclosure(L, main.java_readAssetPath, 0)
-			lualib.lua_setfield(L, lualib.LUA_REGISTRYINDEX, 'java_readAssetPath')
-			lualib.lua_pushcclosure(L, main.java_isAssetPathDir, 0)
-			lualib.lua_setfield(L, lualib.LUA_REGISTRYINDEX, 'java_isAssetPathDir')
-
-			lua[[
-table.insert(package.loaders, function(modname)
-	local reg = debug.getregistry()
-	local java_readAssetPath = reg.java_readAssetPath
-	local java_isAssetPathDir = reg.java_isAssetPathDir
-	-- return function on success, string on failure
-	local reasons = {}
-	for opt in ('?.lua;?/?.lua'):gmatch'[^;]+' do
-		local fn = opt:gsub('%?', (modname:gsub('%.', '/')))
-		if java_isAssetPathDir(fn) then
-			table.insert(reasons, 'is an asset dir: '..fn)
-		else
-			local data = java_readAssetPath(fn)
-			if not data then
-				table.insert(reasons, 'not an asset path: '..fn)
-			else
-				local res, err = load(data, modname)
-				if res then return res end
-				table.insert(reasons, fn..' '..tostring(err))
-			end
-		end
+		package.loaded['lua'] = Lua
+		package.loaded['lua.lua'] = Lua
 	end
-	return "module '"..modname.."' not found:\n\t"
-		..table.concat(reasons, '\n\t')
-end)
-]]
-			return oldinit(thread, ...)
-		end
-
-		return LiteThread.init(self, args, ...)
-	end
-	package.loaded['thread.lite'] = NewLiteThread 
+	modifySubLuas()
 end
 --]=]
 
@@ -120,6 +74,7 @@ end
 require 'java.ffi.jni'	-- cdef for JNIEnv
 ffi.cdef[[JNIEnv * jniEnv;]]
 local JNIEnv = require 'java.jnienv'
+local main = ffi.load'main'
 local J = JNIEnv{
 	ptr = main.jniEnv,
 	usingAndroidJNI = true,

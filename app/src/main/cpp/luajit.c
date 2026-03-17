@@ -272,10 +272,6 @@ it does the following:
 - add the asset loader
 */
 int androidLuajitInitState(lua_State *L) {
-	lua_gc(L, LUA_GCSTOP, 0);
-	luaL_openlibs(L);				// stack:
-	lua_gc(L, LUA_GCRESTART, -1);
-
 	// change ffi.os to Android
 	//dolibrary clears the result so...
 	lua_getglobal(L, "require");	// stack: require
@@ -291,23 +287,14 @@ int androidLuajitInitState(lua_State *L) {
 
 	lua_pop(L, 1);					// stack:
 
-printf("%s: %d\n", __FILE__, __LINE__);
 	lua_getglobal(L, "table");					// stack: table
-printf("%s: %d\n", __FILE__, __LINE__);
 	lua_getfield(L, -1, "insert");				// stack: table, table.insert
-printf("%s: %d\n", __FILE__, __LINE__);
 	lua_remove(L, -2);							// stack: table.insert
-printf("%s: %d\n", __FILE__, __LINE__);
 	lua_getglobal(L, "package");				// stack: table.insert, package
-printf("%s: %d\n", __FILE__, __LINE__);
 	lua_getfield(L, -1, "loaders");				// stack: table.insert, package, package.loaders
-printf("%s: %d\n", __FILE__, __LINE__);
 	lua_remove(L, -2);							// stack: table.insert, package.loaders
-printf("%s: %d\n", __FILE__, __LINE__);
 	lua_pushcfunction(L, androidAssetLoader);	// stack: table.insert, package.loaders, androidAssetLoader
-printf("%s: %d\n", __FILE__, __LINE__);
 	lua_call(L, 2, 0);							// stack:
-printf("%s: %d\n", __FILE__, __LINE__);
 
 	return 0;
 }
@@ -319,6 +306,10 @@ it launches main.lua and gets the callback for the Activity methods
 static int androidLuajitStartApp(lua_State *L) {
 	struct Smain *s = &smain;
 	mainL = L;
+
+	lua_gc(L, LUA_GCSTOP, 0);
+	luaL_openlibs(L);				// stack:
+	lua_gc(L, LUA_GCRESTART, -1);
 
 	androidLuajitInitState(L);
 
