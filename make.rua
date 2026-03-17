@@ -1,0 +1,229 @@
+#!/usr/bin/env rua
+--[[
+This one uses lua-make's make.targets, but not the lua-make buildinfo scripts (because those are pretty hard-coded for C++ projects)
+--]]
+local table = require 'ext.table'
+local os = require 'ext.os'
+local path = require 'ext.path'
+local Targets = require 'make.targets'
+local targets = Targets()
+
+local home = path(os.home())
+
+-- assert or nah?
+local exec = |...|
+	assert(os.exec(table{...}:mapi(|part|do
+		if path:isa(part) then return part:escape() end
+		return tostring(part)
+	end):concat' '))
+
+
+
+local javaFlags = '-g'
+
+local aapt2 = buildToolsDir/'aapt2'
+
+-- Use aapt2 to compile resources into compiled_resources.zip
+local resourceDir = path'nogradle/res'
+local compiledResources = path'_compiled_resources'
+targets:add{
+	dsts = {
+		compiledResources,	-- TODO this is a dir, I think for timestamps I would like individual files?
+	},
+	srcs = {
+		-- TODO find all files in resourcesDir
+	},
+	rule = |r|do
+		exec(aapt2, 'compile',
+			'--dir', resourceDir,
+			'-o', compiledResources..'/'	-- unescaped...
+		)
+	end,
+}
+
+-- maybe todo deal with that stupid merged-manifests crap
+local androidManifest = path'nogradle/AndroidManifest.xml'
+
+-- use aapt2 again to make base.apk
+
+local apkDir = path'_apk'
+local aaptGenDir = path'_gen'
+local aaptGenTmpDir = path'_gentmp'
+local assetsDir = path'app/src/main/assets'
+local apkOfResources = apkDir/'base.apk'
+targets:add{
+	dsts = {
+		apkOfResources,
+		-- aaptGenDir's files
+	},
+	srcs = {
+		androidManifest,
+		compiledResources,	-- TODO this is a dir ... hmm ...
+		-- TODO all files in assetsDir
+	},
+	rule = |r|do
+		aaptGenDir:mkdir(true)
+		aaptGenTmpDir:mkdir(true)
+		r.dsts[1]:getdir():mkdir(true)
+		exec(aapt2, 'link',
+			'-o', apkOfResources,
+			'-A', assetsDir,
+			'-I', androidJar,
+			'--manifest', androidManifest,
+			'--java', aaptGenTmpDir,
+			compiledResources..'/*.flat'	-- unescaped...
+		)
+		-- now copy and update if different only (so the timestamps of identical files don't get touched)
+		exec('cp -ru',
+			aaptGenTmpDir..'/*',	-- unescaped ...
+			aaptGenDir..'/',		-- unescaped ...
+		)
+		-- now delete the temp dir
+		aaptGenTmpDir:rmdir()
+	end,
+}
+
+local javaSrcDir = path'app/src/main/java'
+-- TODO search in javaSrcDir
+local javaSrcFiles = table{
+	path'io/github/thenumbernine/LuaJIT/Activity.java'
+}
+
+local classDir = path'_class'
+-- javaClassFiles is relative to the project
+local javaClassFiles = javaSrcFiles:mapi(|fn| classDir/(fn:setext'class'))
+
+-- this is funny because javac will make multiple files so knowing the true dests requires java introspection
+targets:add{
+	dsts = javaClassFiles,
+	srcs = {
+		-- TODO all java source files
+		javaSrcDir/'io/github/thenumbernine/LuaJIT/Activity.java',
+		-- TODO all java generated source files
+		aaptGenDir/'io/github/thenumbernine/LuaJIT/R.java',
+		aaptGenDir/'io/github/thenumbernine/LuaJIT/Manifest.java',
+	},
+	rule = |r|do
+		classDir:mkdir(true)
+		exec(
+			androidStudioRoot'/jbr/bin/javac',
+			javaFlags,
+			'-d', classDir,
+			r.srcs:unpack()
+		)
+	end,
+}
+
+-- compile .class to classes.dex
+
+local classesDexDir = path'_dex'
+local classes_dex = classesDexDir/'classes.dex'
+targets:add{
+	dsts = {classes_dex},
+	srcs = javaClassFiles,
+	rule = |r|do
+		r.dsts[1]:getdir():mkdir(true)
+		exec(
+			buildToolsDir/'d8',
+			classDir..'/io/github/thenumbernine/LuaJIT/*.class',	-- unescaped because wildcard hmm
+			d8flags,
+			'--output', classesDexDir
+		)
+	end,
+}
+
+-- compile C files as well
+
+-- multiple arch names ...
+local libArch = 'armeabi-v7a'	-- arch folder in lib/
+local ndkArch = 'armv7a'		-- arch prefix in NDK
+
+local ndkVer = io.readproc('ls '..(androidSdkRoot/'ndk'):escape()):trim():split'\n':sort():last()
+local ndkDir = androidSdkRoot/'ndk'/ndkVer
+local ndkBin = ndkDir/'toolchains/llvm/prebuilt/linux-x86_64/bin'
+local ndkcc = ndkBin/(ndkArch..'-linux-androideabi35-clang')
+
+local cppSrcDir = path'app/src/main/cpp'
+local objDir = path'_obj'
+-- notice the include/ folder is created from the build scripts sitting in app/src/main/cpp/make-luajit-*.sh,
+--  which maybe I'll merge into this someday
+local cflags = '-m32 -fPIC -Wall -I '..(path'app/src/main/cpp/include'/libArch):escape()
+targets:add{	-- TODO this per ndk .c/.cpp file
+	dsts = {objDir/'luajit.o'},
+	srcs = {cppSrcDir/'luajit.c'},
+	rule = |r|do
+		dsts[1]:getdir():mkdir(true)
+		exec(ndkcc, cflags, r.dsts[1], '-c', '-o', r.srcs[1])
+	end,
+}
+
+-- compile all ndk .o files into our .so file
+local libDir = path'lib'
+local libArchDir = libDir/libArch
+local libmain_so = libArchDir/'libmain.so'
+targets:add{
+	dsts = {libmain_so},
+	srcs = {objDir/'luajit.o'},	-- TODO srcs = all .o ndk built files
+	rule = |r|do
+		r.dsts[1]:getdir():mkdir(true)
+		exec(ndkcc, '-shared', '-L'..libArchDir, '-lluajit', '-o', r.dsts[1], r.srcs:unpack())
+	end,
+}
+
+-- add the dex to the apk
+local apkUnalignedPath = appDir/'base-unaligned.apk'
+targets:add{
+	dsts = {apkUnalignedPath},
+	srcs = {apkOfResources, classes_dex, libmain_so},
+	rule = |r|do
+		exec('cp', apkOfResources, apkUnalignedPath)
+		exec('zip -j', apkUnalignedPath, classes_dex)
+		exec('zip -r -0 -u', apkUnalignedPath, libDir:escape()..'/')	-- hmm, I need an escape-with-slash, i.e. make sure / is trailing then wrap with quotes ... hmmm
+	end,
+}
+
+-- use zipalign to align the unsigned apk
+local apkAlignedPath = apkDir/'base-aligned.apk'
+targets:add{
+	dsts = {apkAlignedPath},
+	srcs = {apkUnalignedPath},
+	rule = |r|do
+		apkAlignedPath:remove()
+		exec(
+			buildToolsDir/'zipalign',
+			'-p 4',
+			apkUnalignedPath,
+			apkAlignedPath
+		)
+	end,
+}
+
+-- sign the apk
+local apkSignedPath = apkDir/'base-signed.apk'
+local keystore = home/'.android/debug.keystore'
+targets:add{
+	dsts = {apkSignedPath},
+	srcs = {apkAlignedPath},
+	rule = |r|do
+		exec('cp', apkAlignedPath, apkSignedPath)
+		exec(
+			buildToolsDir/'apksigner',
+			'sign',
+			'--ks', keystore,
+			'--ks-pass', 'pass:android',
+			'--ks-key-alias', 'androiddebugkey',
+			'--key-pass', 'pass:android',
+			apkSignedPath
+		)
+		exec(
+			buildToolsDir/'apksigner',
+			'verify',
+			'--verbose',
+			'--print-certs',
+			apkSignedPath
+		)
+	end,
+}
+
+local target = ... or apkDir/'base-signed.apk'
+targets:run(target)

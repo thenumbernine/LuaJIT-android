@@ -87,7 +87,7 @@ JAVA_SRC_DIR = app/src/main/java
 # JAVA_SRC_FILES is relative to JAVA_SRC_DIR
 JAVA_SRC_FILES = io/github/thenumbernine/LuaJIT/Activity.java
 
-CLASS_DIR = ./_class
+CLASS_DIR = _class
 # JAVA_CLASS_FILES is relative to project
 # dependencies should be all .class files, but that list isn't made until after javac is run, so I'll just go with the files i know it makes
 JAVA_CLASS_FILES = $(patsubst %.java, $(CLASS_DIR)/%.class, $(JAVA_SRC_FILES))
@@ -120,7 +120,6 @@ NDK_ARCH=armv7a
 
 NDK_VER = $(shell ls $(ANDROID_SDK_ROOT)/ndk | sort -nr | tail -1)
 NDK_DIR=$(ANDROID_SDK_ROOT)/ndk/$(NDK_VER)
-
 NDK_BIN=$(NDK_DIR)/toolchains/llvm/prebuilt/linux-x86_64/bin
 NDKCC=$(NDK_BIN)/$(NDK_ARCH)-linux-androideabi35-clang
 
@@ -133,6 +132,7 @@ $(OBJ_DIR)/luajit.o: $(CPP_SRC_DIR)/luajit.c
 	mkdir -p $(OBJ_DIR)
 	$(NDKCC) $(CFLAGS) $^ -c -o $@
 
+# compile all ndk .o files into our .so file
 LIB_DIR = lib
 LIB_ARCH_DIR = $(LIB_DIR)/$(LIB_ARCH)
 LIBMAIN_SO = $(LIB_ARCH_DIR)/libmain.so
