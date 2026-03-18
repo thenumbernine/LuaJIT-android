@@ -33,6 +33,9 @@ setmetatable(_G, {
 })
 
 
+packageName = 'io.github.thenumbernine.LuaJIT'
+packageNamePath = path((packageName:gsub('%.', '/')))
+
 home = path(os.home())
 
 androidStudioRoot = home/'android-studio'
@@ -86,7 +89,9 @@ apkOfResources = apkDir/'base.apk'
 targets:add{
 	dsts = {
 		apkOfResources,
-		-- aaptGenDir's files
+		-- aaptGenDir's files:
+		aaptGenDir/packageNamePath/'Manifest.java',
+		aaptGenDir/packageNamePath/'R.java',
 	},
 	srcs = {
 		androidManifest,
@@ -106,35 +111,48 @@ targets:add{
 			compiledResources
 		)
 		-- now copy and update if different only (so the timestamps of identical files don't get touched)
-		exec('cp -ru',
-			aaptGenTmpDir..'/*',	-- unescaped ...
-			aaptGenDir..'/'			-- unescaped ...
-		)
+		for f in aaptGenTmpDir:rdir() do
+			-- TODO any easier way to replace the first dir part?
+			-- or maybe to have rdir return paths relative to the starting point?
+			local dstf = path(
+				(f.path:gsub(
+					'^'..aaptGenTmpDir.path:patescape()..'/',
+					aaptGenDir:patescape()..'/'
+				))
+			)
+			local fdata = assert(f:read())
+			if fdata ~= assert(dstf:read()) then
+				assert(dstf:write(fdata))
+			end
+		end
 		-- now delete the temp dir
 		aaptGenTmpDir:rmdir()
 	end,
 }
 
 javaSrcDir = path'app/src/main/java'
--- TODO search in javaSrcDir
-javaRelSrcFiles = table{
-	path'io/github/thenumbernine/LuaJIT/Activity.java'
+
+-- javaSrcRelFiles is the .java files relative to javaSrcDir ... which is just one file
+-- TODO search in javaSrcDir and remove the relative search dir prefix
+javaSrcRelFiles = table{
+	packageNamePath/'Activity.java'
 }
 
 classDir = path'_class'
--- javaClassFiles is relative to the project
-javaClassFiles = javaRelSrcFiles:mapi(|fn| classDir/(fn:setext'class'))
+-- javaSrcClassFiles holds classes of known .java files
+-- javac will make extra .class files for internal classes
+-- javaSrcClassFiles is relative to project
+-- dependencies should be all .class files, but that list isn't made until after javac is run, so I'll just go with the files i know it makes
+javaSrcClassFiles = javaSrcRelFiles:mapi(|fn| classDir/(fn:setext'class'))
+
+javaSrcFiles = javaSrcRelFiles
+	:mapi(|f| javaSrcDir/f)
+	:append(javaGenFiles)
 
 -- this is funny because javac will make multiple files so knowing the true dests requires java introspection
 targets:add{
-	dsts = javaClassFiles,
-	srcs = {
-		-- TODO all java source files
-		javaSrcDir/'io/github/thenumbernine/LuaJIT/Activity.java',
-		-- TODO all java generated source files
-		aaptGenDir/'io/github/thenumbernine/LuaJIT/R.java',
-		aaptGenDir/'io/github/thenumbernine/LuaJIT/Manifest.java',
-	},
+	dsts = javaSrcClassFiles,
+	srcs = javaSrcFiles,
 	rule = |r|do
 		classDir:mkdir(true)
 		exec(
@@ -152,12 +170,12 @@ classesDexDir = path'_dex'
 classes_dex = classesDexDir/'classes.dex'
 targets:add{
 	dsts = {classes_dex},
-	srcs = javaClassFiles,
+	srcs = javaSrcClassFiles,
 	rule = |r|do
 		r.dsts[1]:getdir():mkdir(true)
 		exec(
 			buildToolsDir/'d8',
-			classDir..'/io/github/thenumbernine/LuaJIT/*.class',	-- unescaped because wildcard hmm
+			(classDir/packageNamePath)..'/*.class',	-- unescaped because wildcard hmm
 			d8flags,
 			'--output', classesDexDir
 		)
@@ -258,4 +276,28 @@ targets:add{
 }
 
 target = ... or apkSignedPath
-targets:run(target)
+_=({
+	install = ||do
+		targets:run(apkSignedPath)
+		exec('adb install', apkSignedPath)
+	end,
+	uninstall = ||do
+		exec('adb uninstall', packageName)
+	end,
+	run = ||do
+		exec('adb shell am start -n '..packageName..'/'..packageName..'.Activity')
+	end,
+	log = ||do
+		exec('adb shell run-as '..packageName..' cat files/out.txt')
+	end,
+	clean = ||do
+		exec('rm -fr',
+			compiledResources,
+			classDir,
+			classesDexDir,
+			aaptGenDir,
+			aaptGenTmpDir,
+			apkDir
+		)
+	end,
+})[target] or targets:run(target)

@@ -2,6 +2,9 @@
 # going off this script, but converting to GNU Make: https://github.com/WanghongLin/miscellaneous/blob/master/tools/build-apk-manually.sh
 
 
+PACKAGE_NAME = io.github.thenumbernine.LuaJIT
+PACKAGE_NAME_PATH = $(subst .,/,$(PACKAGE_NAME))
+
 ANDROID_STUDIO_ROOT = $(HOME)/android-studio
 
 ANDROID_SDK_ROOT = $(HOME)/Android/Sdk
@@ -58,7 +61,7 @@ ANDROID_MANIFEST = nogradle/AndroidManifest.xml
 
 # use aapt2 again to make base.apk
 # this errors that the manifest is missing package, because it's not a merged-manifest
-# this populates _gen/ with io/github/thenumbernine/LuaJIT/ Manifest.java and R.java
+# this populates _gen/ with $(PACKAGE_NAME_PATH)/ Manifest.java and R.java
 # _gen/ is the final location
 # but to spare timestamps, first copy to _gentmp/ then cp -ru, then rm _gentmp/
 AAPT_GEN_DIR = _gen
@@ -86,39 +89,41 @@ $(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(COMPILED_RESOURCES) $(shell find $(AS
 # there has to be an easier way to copy files without fucking up their timestamp even if the source and destination are identical
 
 
-$(AAPT_GEN_DIR)/io/github/thenumbernine/LuaJIT/Manifest.java: $(APK_OF_RESOURCES)
-$(AAPT_GEN_DIR)/io/github/thenumbernine/LuaJIT/R.java: $(APK_OF_RESOURCES)
+$(AAPT_GEN_DIR)/$(PACKAGE_NAME_PATH)/Manifest.java: $(APK_OF_RESOURCES)
+$(AAPT_GEN_DIR)/$(PACKAGE_NAME_PATH)/R.java: $(APK_OF_RESOURCES)
 
 
 JAVA_SRC_DIR = app/src/main/java
 
 # JAVA_SRC_REL_FILES is the .java files relative to JAVA_SRC_DIR ... which is just one file
-JAVA_SRC_REL_FILES = io/github/thenumbernine/LuaJIT/Activity.java
+JAVA_SRC_REL_FILES = $(PACKAGE_NAME_PATH)/Activity.java
 
 CLASS_DIR = _class
-# JAVA_CLASS_FILES is relative to project
+# JAVA_SRC_CLASS_FILES holds classes of known .java files
+# javac will make extra .class files for internal classes
+# JAVA_SRC_CLASS_FILES is relative to project
 # dependencies should be all .class files, but that list isn't made until after javac is run, so I'll just go with the files i know it makes
-JAVA_CLASS_FILES = $(patsubst %.java, $(CLASS_DIR)/%.class, $(JAVA_SRC_REL_FILES))
+JAVA_SRC_CLASS_FILES = $(patsubst %.java, $(CLASS_DIR)/%.class, $(JAVA_SRC_REL_FILES))
 
 JAVA_SRC_FILES = $(patsubst %, $(JAVA_SRC_DIR)/%, $(JAVA_SRC_REL_FILES)) \
 	$(JAVA_GEN_FILES)
 
-$(JAVA_CLASS_FILES): $(JAVA_SRC_FILES)
+$(JAVA_SRC_CLASS_FILES): $(JAVA_SRC_FILES)
 	mkdir -p $(CLASS_DIR)
 	$(ANDROID_STUDIO_ROOT)/jbr/bin/javac \
 		$(JAVA_FLAGS) \
 		-d $(CLASS_DIR) \
-		$(JAVA_SRC_DIR)/io/github/thenumbernine/LuaJIT/Activity.java \
-		$(AAPT_GEN_DIR)/io/github/thenumbernine/LuaJIT/R.java
+		$(JAVA_SRC_DIR)/$(PACKAGE_NAME_PATH)/Activity.java \
+		$(AAPT_GEN_DIR)/$(PACKAGE_NAME_PATH)/R.java
 
 # compile .class to classes.dex
 
 CLASSES_DEX_DIR = _dex
 CLASSES_DEX = $(CLASSES_DEX_DIR)/classes.dex
-$(CLASSES_DEX): $(JAVA_CLASS_FILES)
+$(CLASSES_DEX): $(JAVA_SRC_CLASS_FILES)
 	mkdir -p $(CLASSES_DEX_DIR)
 	$(BUILD_TOOLS_DIR)/d8 \
-		$(CLASS_DIR)/io/github/thenumbernine/LuaJIT/*.class \
+		$(shell find $(CLASS_DIR) -type f -name "*.class") \
 		$(D8_FLAGS) \
 		--output $(CLASSES_DEX_DIR)
 
@@ -182,15 +187,15 @@ install: $(APK_SIGNED_PATH)
 
 .PHONY: uninstall
 uninstall:
-	adb uninstall io.github.thenumbernine.LuaJIT
+	adb uninstall $(PACKAGE_NAME)
 
 .PHONY: run
 run:
-	adb shell am start -n io.github.thenumbernine.LuaJIT/io.github.thenumbernine.LuaJIT.Activity
+	adb shell am start -n $(PACKAGE_NAME)/$(PACKAGE_NAME).Activity
 
 .PHONY: log
 log:
-	adb shell run-as io.github.thenumbernine.LuaJIT cat files/out.txt
+	adb shell run-as $(PACKAGE_NAME) cat files/out.txt
 
 .PHONY: clean
 clean:

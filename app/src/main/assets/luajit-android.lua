@@ -153,7 +153,8 @@ local callbacks = {
         textView:setLayoutParams(ViewGroup.LayoutParams(
 			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
 		))
-        textView:setPadding(16, 16, 16, 16)
+        textView:setTypeface(J.android.graphics.Typeface.MONOSPACE)
+		textView:setPadding(16, 16, 16, 16)
 
         local scrollView = J.android.widget.ScrollView(activity)
         scrollView:setLayoutParams(ViewGroup.LayoutParams(
@@ -211,7 +212,7 @@ print('creating FileObserver...')
 					sig = {'void', 'int', 'java.lang.String'},
 					newLuaState = true,	-- new thread, new lua state
 					value = function(J, this, event, path)	-- newLuaState means 'J' first
-						
+
 						--[[
 						this.activity:runOnUiThread(this.runnable)
 						--]]
@@ -236,7 +237,7 @@ print('created FileObserver.')
 		-- this gets a weird error:
 		-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
 		observer:startWatching()
-		
+
 print"onCreate DONE"
 		--]=]
 		-- [=[ same but without FileObserver, just run a callback and watch the file and update
@@ -245,11 +246,23 @@ print"onCreate DONE"
 		textView:setText(require 'ext.path' 'out.txt':read() or '')
 		local Looper = J.android.os.Looper
 		handler = J.android.os.Handler(Looper:getMainLooper())
+
+		local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
+			scrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
+		end)
+
 		logUpdater = J.Runnable(function()
 			local thisTextTime = logFile:lastModified()
 			if thisTextTime > lastTextTime then
 				lastTextTime = thisTextTime
+
+				local isAtBottom = scrollView:canScrollVertically(1)
+
 				textView:setText(require 'ext.path' 'out.txt':read() or '')
+
+				if isAtBottom then
+					scrollView:post(ScrollToBottomRunnable())
+				end
 			end
 			handler:postDelayed(this, 2000)
 		end)
