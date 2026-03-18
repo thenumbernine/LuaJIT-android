@@ -164,7 +164,7 @@ $(LIBMAIN_SO): $(OBJ_DIR)/luajit.o
 
 LUAJIT_SO = $(LIB_ARCH_DIR)/libluajit.so
 # dependencies? a lot?
-$(LUAJIT_SO): 
+$(LUAJIT_SO):
 	$(shell cd app/src/main/cpp && ./make-luajit-$(NDK_ARCH).sh)
 	cp app/src/main/jniLibs/$(LIB_ARCH)/libluajit.so $(LUAJIT_SO)
 	cp -R app/src/main/cpp/jit/$(LIB_ARCH) app/src/main/assets/jit

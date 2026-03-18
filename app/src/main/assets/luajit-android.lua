@@ -15,7 +15,10 @@ local J = require 'java'
 local callbacks = {}
 
 local nextMenuID = 0
-local getNextMenu = || nextMenuID :+= 1
+local function getNextMenu()
+	nextMenuID = nextMenuID + 1
+	return nextMenuID 
+end
 
 -- maybe I should by default make all handlers that call through to super ...
 do
@@ -39,211 +42,274 @@ end
 
 
 -- [=======[ attempt at just outputting the out.txt file
+do
+	local logScrollView
+	--local observer
+	--local viewSwitcher
 
-local logScrollView
---local observer
---local viewSwitcher
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, savedInstanceState, ...)
+		prevOnCreate(activity, savedInstanceState, ...)
 
-local prevOnCreate = callbacks.onCreate
-callbacks.onCreate = function(activity, savedInstanceState)
-	prevOnCreate(activity, savedInstanceState)
+		local ViewGroup = J.android.view.ViewGroup
 
-	local ViewGroup = J.android.view.ViewGroup
+		local textView = J.android.widget.TextView(activity)
+		textView:setLayoutParams(ViewGroup.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+		))
+		textView:setPadding(16, 16, 16, 16)
+		textView:setTypeface(J.android.graphics.Typeface.MONOSPACE)
+		textView:setTextSize(J.android.util.TypedValue.COMPLEX_UNIT_SP, 12)
 
-	local textView = J.android.widget.TextView(activity)
-	textView:setLayoutParams(ViewGroup.LayoutParams(
-		ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-	))
-	textView:setPadding(16, 16, 16, 16)
-	textView:setTypeface(J.android.graphics.Typeface.MONOSPACE)
-	textView:setTextSize(J.android.util.TypedValue.COMPLEX_UNIT_SP, 12)
-
-	logScrollView = J.android.widget.ScrollView(activity)
-	logScrollView:setLayoutParams(ViewGroup.LayoutParams(
-		ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-	))
-	logScrollView:addView(textView)
+		logScrollView = J.android.widget.ScrollView(activity)
+		logScrollView:setLayoutParams(ViewGroup.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+		))
+		logScrollView:addView(textView)
 
 
-	--[=[
-print('creating ObserverRunnable...')
-	local ObserverRunnable = J.Runnable:_subclass{
-		isPublic = true,
-		fields = {
-			textView = {
-				isPublic = true,
-				isStatic = true,
-				sig = textView._classpath,
+		--[=[
+	print('creating ObserverRunnable...')
+		local ObserverRunnable = J.Runnable:_subclass{
+			isPublic = true,
+			fields = {
+				textView = {
+					isPublic = true,
+					isStatic = true,
+					sig = textView._classpath,
+				},
 			},
-		},
-		methods = {
-			run = {
-				isPublic = true,
-				sig = {'void'},
-				newLuaState = true,	-- back to the old thread but let's be safe?
-				value = function(J, this)
-					-- refreshFileContent:
-					this.textView:setText(path'out.txt':read() or '')
-				end,
+			methods = {
+				run = {
+					isPublic = true,
+					sig = {'void'},
+					newLuaState = true,	-- back to the old thread but let's be safe?
+					value = function(J, this)
+						-- refreshFileContent:
+						this.textView:setText(path'out.txt':read() or '')
+					end,
+				},
+			}
+		}
+		ObserverRunnable.textView = textView
+	print('created ObserverRunnable.')
+
+	print('activity._classpath', activity._classpath)
+	print('ObserverRunnable._classpath', ObserverRunnable._classpath)
+	print('creating FileObserver...')
+		local Observer = J.android.os.FileObserver:_subclass{
+			isPublic = true,
+			fields = {
+				activity = {
+					isPublic = true,
+					sig = activity._classpath,
+				},
+				-- if I pass runnable in here, lua-java tries to query its class's reflection and android segfaults because android is retarded
+				runnableClass = {
+					isPublic = true,
+					sig = 'java.lang.Class',
+				},
+			},
+			methods = {
+				onEvent = {
+					isPublic = true,
+					sig = {'void', 'int', 'java.lang.String'},
+					newLuaState = true,	-- new thread, new lua state
+					value = function(J, this, event, path)	-- newLuaState means 'J' first
+
+						--[[
+						this.activity:runOnUiThread(this.runnable)
+						--]]
+						-- [[ hmm segfaulting but outside of this call
+						local ctor = this.runnableClass:getDeclaredConstructor()
+						local runnable = ctor:newInstance()
+						this.activity:runOnUiThread(runnable:_cast'java.lang.Runnable')
+						--]]
+					end,
+				},
 			},
 		}
-	}
-	ObserverRunnable.textView = textView
-print('created ObserverRunnable.')
+	print('created FileObserver.')
+		local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
+		local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
+		observer.activity = activity
+		observer.runnableClass = ObserverRunnable.class
 
-print('activity._classpath', activity._classpath)
-print('ObserverRunnable._classpath', ObserverRunnable._classpath)
-print('creating FileObserver...')
-	local Observer = J.android.os.FileObserver:_subclass{
-		isPublic = true,
-		fields = {
-			activity = {
-				isPublic = true,
-				sig = activity._classpath,
-			},
-			-- if I pass runnable in here, lua-java tries to query its class's reflection and android segfaults because android is retarded
-			runnableClass = {
-				isPublic = true,
-				sig = 'java.lang.Class',
-			},
-		},
-		methods = {
-			onEvent = {
-				isPublic = true,
-				sig = {'void', 'int', 'java.lang.String'},
-				newLuaState = true,	-- new thread, new lua state
-				value = function(J, this, event, path)	-- newLuaState means 'J' first
+		-- refreshFileContent:
+		textView:setText(path'out.txt':read() or '')
 
-					--[[
-					this.activity:runOnUiThread(this.runnable)
-					--]]
-					-- [[ hmm segfaulting but outside of this call
-					local ctor = this.runnableClass:getDeclaredConstructor()
-					local runnable = ctor:newInstance()
-					this.activity:runOnUiThread(runnable:_cast'java.lang.Runnable')
-					--]]
-				end,
-			},
-		},
-	}
-print('created FileObserver.')
-	local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
-	local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
-	observer.activity = activity
-	observer.runnableClass = ObserverRunnable.class
+		-- this gets a weird error:
+		-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
+		observer:startWatching()
 
-	-- refreshFileContent:
-	textView:setText(path'out.txt':read() or '')
+	print"onCreate DONE"
+		--]=]
+		-- [=[ same but without FileObserver, just run a callback and watch the file and update
+		local logFile = J.java.io.File'out.txt'
+		local lastTextTime = logFile:lastModified()
+		textView:setText(path'out.txt':read() or '')
+		local Looper = J.android.os.Looper
+		handler = J.android.os.Handler(Looper:getMainLooper())
 
-	-- this gets a weird error:
-	-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
-	observer:startWatching()
+		local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
+			logScrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
+		end)
 
-print"onCreate DONE"
-	--]=]
-	-- [=[ same but without FileObserver, just run a callback and watch the file and update
-	local logFile = J.java.io.File'out.txt'
-	local lastTextTime = logFile:lastModified()
-	textView:setText(path'out.txt':read() or '')
-	local Looper = J.android.os.Looper
-	handler = J.android.os.Handler(Looper:getMainLooper())
+		logUpdater = J.Runnable(function()
+			local thisTextTime = logFile:lastModified()
+			if thisTextTime > lastTextTime then
+				lastTextTime = thisTextTime
 
-	local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
-		logScrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
-	end)
+				local isAtBottom = logScrollView:canScrollVertically(1)
 
-	logUpdater = J.Runnable(function()
-		local thisTextTime = logFile:lastModified()
-		if thisTextTime > lastTextTime then
-			lastTextTime = thisTextTime
+				textView:setText(path'out.txt':read() or '')
 
-			local isAtBottom = logScrollView:canScrollVertically(1)
-
-			textView:setText(path'out.txt':read() or '')
-
-			if isAtBottom then
-				logScrollView:post(ScrollToBottomRunnable())
+				if isAtBottom then
+					logScrollView:post(ScrollToBottomRunnable())
+				end
 			end
-		end
-		handler:postDelayed(this, 2000)
-	end)
-	--]=]
+			handler:postDelayed(this, 2000)
+		end)
+		--]=]
 
-	--[[ single view
-	activity:setContentView(logScrollView)
-	--]]
-	--[[ view switcher
-	viewSwitcher = J.android.widget.ViewSwitcher(activity)
-	viewSwitcher:addView(logScrollView)
-	--]]
-end
-
-local prevOnResume = callbacks.onResume
-callbacks.onResume = function(activity)
-	prevOnResume(activity)
-	handler:post(logUpdater)
-end
-
-local prevOnPause = callbacks.onPause
-callbacks.onPause = function(activity)
-	prevOnPause(activity)
-	handler:removeCallbacks(logUpdater)
-end
-
-local prevOnDestroy = callbacks.onDestroy
-callbacks.onDestroy = function(activity)
-	prevOnDestroy(activity)
-	--[[
-	if observer then observer:stopWatching() end
-	--]]
-end
-
-local menuOpenLog = getNextMenu()
-local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
-callbacks.onCreateOptionsMenu = function(activity, menu, ...)
-	prevOnCreateOptionsMenu(activity, menu, ...)
-	menu:add(0, menuOpenLog, 0, 'Open Log')
-		:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
-	return true
-end
-
-
-local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
-callbacks.onOptionsItemSelected = function(activity, item, ...)
-	if item:getItemId() == menuOpenLog then
-		-- [[ open the log ... but doesn't use back buttons
+		--[[ single view
 		activity:setContentView(logScrollView)
 		--]]
-		--[[ open ?
-		viewSwitcher:showNext()	-- do you have any control over what view is going to be shown, or did retards make Android?
+		--[[ view switcher
+		viewSwitcher = J.android.widget.ViewSwitcher(activity)
+		viewSwitcher:addView(logScrollView)
 		--]]
 	end
-	
-	return prevOnOptionsItemSelected(activity, item, ...)
+
+	local prevOnResume = callbacks.onResume
+	callbacks.onResume = function(activity)
+		prevOnResume(activity)
+		handler:post(logUpdater)
+	end
+
+	local prevOnPause = callbacks.onPause
+	callbacks.onPause = function(activity)
+		prevOnPause(activity)
+		handler:removeCallbacks(logUpdater)
+	end
+
+	local prevOnDestroy = callbacks.onDestroy
+	callbacks.onDestroy = function(activity)
+		prevOnDestroy(activity)
+		--[[
+		if observer then observer:stopWatching() end
+		--]]
+	end
+
+	local menuOpenLog = getNextMenu()
+	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
+	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
+		prevOnCreateOptionsMenu(activity, menu, ...)
+		menu:add(0, menuOpenLog, 0, 'Open Log')
+			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+		return true
+	end
+
+
+	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
+	callbacks.onOptionsItemSelected = function(activity, item, ...)
+		if item:getItemId() == menuOpenLog then
+			-- [[ open the log ... but doesn't use back buttons
+			activity:setContentView(logScrollView)
+			--]]
+			--[[ open ?
+			viewSwitcher:showNext()	-- do you have any control over what view is going to be shown, or did retards make Android?
+			--]]
+		end
+		
+		return prevOnOptionsItemSelected(activity, item, ...)
+	end
 end
-
 --]=======]
+--[=======[ bluetooth scanner example ... gets back nothing and no errors *shrug*
+do
+	local BluetoothDevice = J.android.bluetooth.BluetoothDevice
 
---[=======[ directory image gallery example
+	local receiver, bluetoothAdapter
 
-local Intent = J.android.content.Intent
-local Activity = J.android.app.Activity
-local LinearLayout = J.android.widget.LinearLayout
-local ViewGroup = J.android.view.ViewGroup
-local ImageView = J.android.widget.ImageView
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, savedInstanceState, ...)
+		prevOnCreate(activity, savedInstanceState, ...)
 
-local MENU_CHOOSE_FOLDER = 1
+		bluetoothAdapter = J.android.bluetooth.BluetoothAdapter:getDefaultAdapter()
 
-local gridLayout
+		local BroadcastReceiver = J.android.content.BroadcastReceiver
+		local Receiver = BroadcastReceiver:_subclass{
+			isPublic = true,
+			methods = {
+				{
+					name = 'onReceive',
+					isPublic = true,
+					sig = {'void', 'android.content.Context', 'android.content.Intent'},
+					value = function(this, context, intent)
+						local action = intent:getAction()
+						if BluetoothDevice.ACTION_FOUND:equals(action) then
+							local device = intent:getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+							local deviceName = device:getName()
+							local deviceHardwareAddress = device:getAddress() -- MAC address
+							-- Hidden devices will appear here if they are transmitting
+print('found', deviceHardwareAddress, deviceName)
+						end
+					end,
+				},
+			},
+		}
+		receiver = Receiver()
+print('registering receiver', receiver)
 
--- these callbacks are centered around the original activity
--- you can make a new activity and then provide its callbacks in Lua
-	-- in order of how Android handles it:
-local callbacks = {
-	onCreate = function(activity, ...)
-		activity.super:onCreate(...)
+		local filter = J.android.content.IntentFilter(BluetoothDevice.ACTION_FOUND)
+		activity:registerReceiver(receiver, filter)
 
-		local root = LinearLayout(activity)
+		if not (bluetoothAdapter
+		and bluetoothAdapter:isEnabled())
+		then
+			print('BLUETOOTH IS NOT ENABLED')
+			return
+		end
+
+		bluetoothAdapter:startDiscovery()
+print('onCreate DONE')
+	end
+
+	local prevOnDestroy = callbacks.onDestroy
+	callbacks.onDestroy = function(activity, ...)
+print('unregistering receiver', receiver)
+		activity:unregisterReceiver(receiver)
+
+		if bluetoothAdapter then
+			bluetoothAdapter:cancelDiscovery()
+		end
+
+		prevOnDestroy(activity, ...)
+	end
+end
+--]=======]
+-- [=======[ directory image gallery example
+do
+	local Intent = J.android.content.Intent
+	local Activity = J.android.app.Activity
+	local LinearLayout = J.android.widget.LinearLayout
+	local ViewGroup = J.android.view.ViewGroup
+	local ImageView = J.android.widget.ImageView
+
+	local menuChooseFolder = getNextMenu()
+
+	local root
+	local gridLayout
+
+	-- these callbacks are centered around the original activity
+	-- you can make a new activity and then provide its callbacks in Lua
+		-- in order of how Android handles it:
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, ...)
+		prevOnCreate(activity, ...)
+
+		root = LinearLayout(activity)
 		root:setLayoutParams(ViewGroup.LayoutParams(-1, -1))
 
 		local toolbar = J.android.widget.Toolbar(activity)
@@ -261,36 +327,38 @@ local callbacks = {
 
 		scrollView:addView(gridLayout)
 		root:addView(scrollView)
+	
+		--[[
 		activity:setContentView(root)
-	end,
+		--]]
+	end
 
-	onBackPressed = function(activity, ...)
-		--activity.super:onBackPressed(...)
-		activity:finish()
-	end,
-
-	onCreateOptionsMenu = function(activity, menu)
-		menu:add(0, MENU_CHOOSE_FOLDER, 0, 'Choose Folder')
+	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu 
+	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
+		menu:add(0, menuChooseFolder, 0, 'Choose Folder')
 			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
-		return true
-	end,
+		return prevOnCreateOptionsMenu(activity, menu, ...)
+	end
 
-	onOptionsItemSelected = function(activity, item)
+	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected 
+	callbacks.onOptionsItemSelected = function(activity, item, ...)
 		local function openFolderPicker()
 			local intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
 			intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 			activity:startActivityForResult(intent, 9999)
 		end
 
-		if item:getItemId() == MENU_CHOOSE_FOLDER then
+		if item:getItemId() == menuChooseFolder then
 			openFolderPicker()
 			return true
 		end
-		return activity.super:onOptionsItemSelected(item)
-	end,
 
-	onActivityResult = function(activity, requestCode, resultCode, data)
-		activity.super:onActivityResult(requestCode, resultCode, data)
+		return prevOnOptionsItemSelected(activity, item, ...)
+	end
+
+	local prevOnActivityResult = callbacks.onActivityResult
+	callbacks.onActivityResult = function(activity, requestCode, resultCode, data)
+		prevOnActivityResult(activity, requestCode, resultCode, data)
 
 		if requestCode:intValue() == 9999
 		and resultCode:intValue() == Activity.RESULT_OK
@@ -350,71 +418,12 @@ local callbacks = {
 					end
 				end
 			end
+		
+			-- finally, show the root
+			activity:setContentView(root)
 		end
-	end,
-}
-
---]=======]
---[=======[ bluetooth scanner example ... gets back nothing and no errors *shrug*
-local BluetoothDevice = J.android.bluetooth.BluetoothDevice
-
-local receiver, bluetoothAdapter
-
-local callbacks = {
-	onCreate = function(activity, savedInstanceState)
-		activity.super:onCreate(savedInstanceState)
-
-		bluetoothAdapter = J.android.bluetooth.BluetoothAdapter:getDefaultAdapter()
-
-		local BroadcastReceiver = J.android.content.BroadcastReceiver
-		local Receiver = BroadcastReceiver:_subclass{
-			isPublic = true,
-			methods = {
-				{
-					name = 'onReceive',
-					isPublic = true,
-					sig = {'void', 'android.content.Context', 'android.content.Intent'},
-					value = function(this, context, intent)
-						local action = intent:getAction()
-						if BluetoothDevice.ACTION_FOUND:equals(action) then
-							local device = intent:getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-							local deviceName = device:getName()
-							local deviceHardwareAddress = device:getAddress() -- MAC address
-							-- Hidden devices will appear here if they are transmitting
-print('found', deviceHardwareAddress, deviceName)
-						end
-					end,
-				},
-			},
-		}
-		receiver = Receiver()
-print('registering receiver', receiver)
-
-		local filter = J.android.content.IntentFilter(BluetoothDevice.ACTION_FOUND)
-		activity:registerReceiver(receiver, filter)
-
-		if not (bluetoothAdapter
-		and bluetoothAdapter:isEnabled())
-		then
-			print('BLUETOOTH IS NOT ENABLED')
-			return
-		end
-
-		bluetoothAdapter:startDiscovery()
-print('onCreate DONE')
-	end,
-
-	onDestroy = function(activity)
-		activity.super:onDestroy()
-
-print('unregistering receiver', receiver)
-		activity:unregisterReceiver(receiver)
-
-		if bluetoothAdapter then
-			bluetoothAdapter:cancelDiscovery()
-		end
-	end,
-}
+	end
+end
 --]=======]
 --[=======[  bluetooth le scanner example
 local callbacks = {

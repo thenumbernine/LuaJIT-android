@@ -279,7 +279,7 @@ targets:add{
 	end,
 }
 
-target = ... or apkSignedPath
+target = ... or 'install'	-- default
 local f = ({
 	install = ||do
 		targets:run(apkSignedPath)
