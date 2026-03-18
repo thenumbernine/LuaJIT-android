@@ -2,12 +2,8 @@
 --[[
 This one uses lua-make's make.targets, but not the lua-make buildinfo scripts (because those are pretty hard-coded for C++ projects)
 --]]
-local table = require 'ext.table'
-local os = require 'ext.os'
-local path = require 'ext.path'
 local Targets = require 'make.targets'
-local targets = Targets()
-
+local targets = Targets() --{verbose=true}
 
 -- assert or nah?
 local exec = |...|
@@ -16,18 +12,15 @@ local exec = |...|
 		return tostring(part)
 	end):concat' '))
 
-local dirsort = |p| do
-	local result = table.wrapfor(p:dir())
+local dirsort = |p|
+	table.wrapfor(p:dir())
 	:mapi(|vk| vk[1])
 	:sort(|a,b| a.path < b.path)	-- is < in Path already?
-print('dirsort', tolua(result))
-	return result
-end
 
 assert.eq(getmetatable(_G), nil)
 setmetatable(_G, {
 	__newindex = |t,k,v|do
-		print(k,'=',v)
+--		print(k,'=',v)	-- verbose output.  comment out to disable.
 		rawset(t, k, v)
 	end,
 })
@@ -36,7 +29,8 @@ setmetatable(_G, {
 packageName = 'io.github.thenumbernine.LuaJIT'
 packageNamePath = path((packageName:gsub('%.', '/')))
 
--- multiple arch names ...
+-- multiple names per arch ...
+-- TODO run the build for multiple arch's
 libArch = 'armeabi-v7a'	-- arch folder in lib/
 ndkArch = 'armv7a'		-- arch prefix in NDK
 
@@ -99,11 +93,13 @@ targets:add{
 		aaptGenDir/packageNamePath/'Manifest.java',
 		aaptGenDir/packageNamePath/'R.java',
 	},
-	srcs = {
+	srcs = table{
 		androidManifest,
 		compiledResources,
-		-- TODO all files in assetsDir
-	},
+	}:append(
+		-- all files in assetsDir:
+		table.wrapfor(assetsDir:rdir()):mapi(|vk| vk[1])
+	),
 	rule = |r|do
 		aaptGenDir:mkdir(true)
 		aaptGenTmpDir:mkdir(true)

@@ -2,11 +2,37 @@
 -- it is distinct of the SDLLuaJIT in that it has a minimal bootstrap that points it squarely to lua-java and the assets apk loader
 -- from there I will load more files from here
 -- and then write stupid android apps
+local assert = require 'ext.assert'
+local table = require 'ext.table'
+local path = require 'ext.path'
 local ffi = require 'ffi'
 local J = require 'java'
 
 --print('_G='..tostring(_G)..', jniEnv='..tostring(J._ptr))
 --print('Android API:', J.android.os.Build.VERSION.SDK_INT)
+
+
+local callbacks = {}
+
+-- maybe I should by default make all handlers that call through to super ...
+do
+	local Activity = J.android.app.Activity
+	local callbackNames = {}
+	for name,methodsForName in pairs(Activity._methods) do
+		for _,method in ipairs(methodsForName) do
+			if method._class == 'android.app.Activity' then
+				callbackNames[name] = true	-- do as a set so multiple signature methods will only get one callback (since lua invokes it by name below)
+			end
+		end
+	end
+	for name in pairs(callbackNames) do
+		-- set up default callback handler to run super() of whatever args we are given
+		callbacks[name] = function(activity, ...)
+			local super = activity.super
+			return super[name](super, ...)
+		end
+	end
+end
 
 
 --[=======[ directory image gallery example
@@ -143,147 +169,151 @@ local callbacks = {
 -- [=======[ attempt at just outputting the out.txt file
 
 local observer
-local callbacks = {
-	onCreate = function(activity, savedInstanceState)
-		activity.super:onCreate(savedInstanceState)
+local prevOnCreate = callbacks.onCreate
+callbacks.onCreate = function(activity, savedInstanceState)
+	prevOnCreate(activity, savedInstanceState)
 
-		local ViewGroup = J.android.view.ViewGroup
+	local ViewGroup = J.android.view.ViewGroup
 
-        local textView = J.android.widget.TextView(activity)
-        textView:setLayoutParams(ViewGroup.LayoutParams(
-			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-		))
-        textView:setTypeface(J.android.graphics.Typeface.MONOSPACE)
-		textView:setPadding(16, 16, 16, 16)
+	local textView = J.android.widget.TextView(activity)
+	textView:setLayoutParams(ViewGroup.LayoutParams(
+		ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+	))
+	textView:setPadding(16, 16, 16, 16)
+	textView:setTypeface(J.android.graphics.Typeface.MONOSPACE)
+	textView:setTextSize(J.android.util.TypedValue.COMPLEX_UNIT_SP, 12)
 
-        local scrollView = J.android.widget.ScrollView(activity)
-        scrollView:setLayoutParams(ViewGroup.LayoutParams(
-			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-		))
-        scrollView:addView(textView)
+	local scrollView = J.android.widget.ScrollView(activity)
+	scrollView:setLayoutParams(ViewGroup.LayoutParams(
+		ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+	))
+	scrollView:addView(textView)
 
-        activity:setContentView(scrollView)
+	activity:setContentView(scrollView)
 
-		--[=[
+	--[=[
 print('creating ObserverRunnable...')
-		local ObserverRunnable = J.Runnable:_subclass{
-			isPublic = true,
-			fields = {
-				textView = {
-					isPublic = true,
-					isStatic = true,
-					sig = textView._classpath,
-				},
+	local ObserverRunnable = J.Runnable:_subclass{
+		isPublic = true,
+		fields = {
+			textView = {
+				isPublic = true,
+				isStatic = true,
+				sig = textView._classpath,
 			},
-			methods = {
-				run = {
-					isPublic = true,
-					sig = {'void'},
-					newLuaState = true,	-- back to the old thread but let's be safe?
-					value = function(J, this)
-						-- refreshFileContent:
-						this.textView:setText(require 'ext.path' 'out.txt':read() or '')
-					end,
-				},
-			}
+		},
+		methods = {
+			run = {
+				isPublic = true,
+				sig = {'void'},
+				newLuaState = true,	-- back to the old thread but let's be safe?
+				value = function(J, this)
+					-- refreshFileContent:
+					this.textView:setText(path'out.txt':read() or '')
+				end,
+			},
 		}
-		ObserverRunnable.textView = textView
+	}
+	ObserverRunnable.textView = textView
 print('created ObserverRunnable.')
 
 print('activity._classpath', activity._classpath)
 print('ObserverRunnable._classpath', ObserverRunnable._classpath)
 print('creating FileObserver...')
-		local Observer = J.android.os.FileObserver:_subclass{
-			isPublic = true,
-			fields = {
-				activity = {
-					isPublic = true,
-					sig = activity._classpath,
-				},
-				-- if I pass runnable in here, lua-java tries to query its class's reflection and android segfaults because android is retarded
-				runnableClass = {
-					isPublic = true,
-					sig = 'java.lang.Class',
-				},
+	local Observer = J.android.os.FileObserver:_subclass{
+		isPublic = true,
+		fields = {
+			activity = {
+				isPublic = true,
+				sig = activity._classpath,
 			},
-			methods = {
-				onEvent = {
-					isPublic = true,
-					sig = {'void', 'int', 'java.lang.String'},
-					newLuaState = true,	-- new thread, new lua state
-					value = function(J, this, event, path)	-- newLuaState means 'J' first
+			-- if I pass runnable in here, lua-java tries to query its class's reflection and android segfaults because android is retarded
+			runnableClass = {
+				isPublic = true,
+				sig = 'java.lang.Class',
+			},
+		},
+		methods = {
+			onEvent = {
+				isPublic = true,
+				sig = {'void', 'int', 'java.lang.String'},
+				newLuaState = true,	-- new thread, new lua state
+				value = function(J, this, event, path)	-- newLuaState means 'J' first
 
-						--[[
-						this.activity:runOnUiThread(this.runnable)
-						--]]
-						-- [[ hmm segfaulting but outside of this call
-						local ctor = this.runnableClass:getDeclaredConstructor()
-						local runnable = ctor:newInstance()
-						this.activity:runOnUiThread(runnable:_cast'java.lang.Runnable')
-						--]]
-					end,
-				},
+					--[[
+					this.activity:runOnUiThread(this.runnable)
+					--]]
+					-- [[ hmm segfaulting but outside of this call
+					local ctor = this.runnableClass:getDeclaredConstructor()
+					local runnable = ctor:newInstance()
+					this.activity:runOnUiThread(runnable:_cast'java.lang.Runnable')
+					--]]
+				end,
 			},
-		}
+		},
+	}
 print('created FileObserver.')
-		local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
-		local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
-		observer.activity = activity
-		observer.runnableClass = ObserverRunnable.class
+	local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
+	local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
+	observer.activity = activity
+	observer.runnableClass = ObserverRunnable.class
 
-		-- refreshFileContent:
-		textView:setText(require 'ext.path' 'out.txt':read() or '')
+	-- refreshFileContent:
+	textView:setText(path'out.txt':read() or '')
 
-		-- this gets a weird error:
-		-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
-		observer:startWatching()
+	-- this gets a weird error:
+	-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
+	observer:startWatching()
 
 print"onCreate DONE"
-		--]=]
-		-- [=[ same but without FileObserver, just run a callback and watch the file and update
-		local logFile = J.java.io.File'out.txt'
-		local lastTextTime = logFile:lastModified()
-		textView:setText(require 'ext.path' 'out.txt':read() or '')
-		local Looper = J.android.os.Looper
-		handler = J.android.os.Handler(Looper:getMainLooper())
+	--]=]
+	-- [=[ same but without FileObserver, just run a callback and watch the file and update
+	local logFile = J.java.io.File'out.txt'
+	local lastTextTime = logFile:lastModified()
+	textView:setText(path'out.txt':read() or '')
+	local Looper = J.android.os.Looper
+	handler = J.android.os.Handler(Looper:getMainLooper())
 
-		local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
-			scrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
-		end)
+	local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
+		scrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
+	end)
 
-		logUpdater = J.Runnable(function()
-			local thisTextTime = logFile:lastModified()
-			if thisTextTime > lastTextTime then
-				lastTextTime = thisTextTime
+	logUpdater = J.Runnable(function()
+		local thisTextTime = logFile:lastModified()
+		if thisTextTime > lastTextTime then
+			lastTextTime = thisTextTime
 
-				local isAtBottom = scrollView:canScrollVertically(1)
+			local isAtBottom = scrollView:canScrollVertically(1)
 
-				textView:setText(require 'ext.path' 'out.txt':read() or '')
+			textView:setText(path'out.txt':read() or '')
 
-				if isAtBottom then
-					scrollView:post(ScrollToBottomRunnable())
-				end
+			if isAtBottom then
+				scrollView:post(ScrollToBottomRunnable())
 			end
-			handler:postDelayed(this, 2000)
-		end)
-		--]=]
-	end,
+		end
+		handler:postDelayed(this, 2000)
+	end)
+	--]=]
+end
 
-	onResume = function(activity)
-		activity.super:onResume()
-		handler:post(logUpdater)
-	end,
+local prevOnResume = callbacks.onResume
+callbacks.onResume = function(activity)
+	prevOnResume(activity)
+	handler:post(logUpdater)
+end
 
-	onPause = function(activity)
-		activity.super:onPause()
-		handler:removeCallbacks(logUpdater)
-	end,
+local prevOnPause = callbacks.onPause
+callbacks.onPause = function(activity)
+	prevOnPause(activity)
+	handler:removeCallbacks(logUpdater)
+end
 
-	onDestroy = function(activity)
-		activity.super:onDestroy()
-		if observer then observer:stopWatching() end
-	end,
-}
+local prevOnDestroy = callbacks.onDestroy
+callbacks.onDestroy = function(activity)
+	prevOnDestroy(activity)
+	if observer then observer:stopWatching() end
+end
+
 --]=======]
 --[=======[ bluetooth scanner example ... gets back nothing and no errors *shrug*
 local BluetoothDevice = J.android.bluetooth.BluetoothDevice
@@ -399,15 +429,5 @@ print('onCreate DONE')
 }
 --]=======]
 return function(methodName, activity, ...)
-	print('BEGIN', methodName, activity, ...)
-	local callback = callbacks[methodName]
-	local result
-	if callback then
-		result = callback(activity, ...)
-	else
-		local super = activity.super
-		result = super[methodName](super, ...)
-	end
-	print('END', methodName)
-	return result
+	return assert.index(callbacks, methodName)(activity, ...)
 end
