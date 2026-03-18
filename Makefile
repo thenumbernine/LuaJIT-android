@@ -37,12 +37,11 @@ AAPT2 = $(BUILD_TOOLS_DIR)/aapt2
 # NOTICE `aapt2 compile` works on a normie AndroidManifest.xml while `aapt2 link` does not
 #RESOURCE_DIR = app/src/main/res
 RESOURCE_DIR = nogradle/res
-COMPILED_RESOURCES = _compiled_resources
+COMPILED_RESOURCES = _compiled_resources.zip
 $(COMPILED_RESOURCES): $(shell find $(RESOURCE_DIR) -type f)
-	mkdir -p $(COMPILED_RESOURCES)
 	$(AAPT2) compile \
 		--dir $(RESOURCE_DIR) \
-		-o $(COMPILED_RESOURCES)/
+		-o $(COMPILED_RESOURCES)
 
 # merge manifests
 # nah it's too stupid.  can't find dependencies, docs don't help, Google AI doesn't help ...
@@ -76,11 +75,12 @@ $(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(COMPILED_RESOURCES) $(shell find $(AS
 		-I $(ANDROID_JAR) \
 		--manifest $(ANDROID_MANIFEST) \
 		--java $(AAPT_GEN_TMP_DIR) \
-		$(COMPILED_RESOURCES)/*.flat
-	# now we should compile the java files, now, with R.java
-	# don't overwrite if it's not different, then Make won't constantly rebuild the java.
+		$(COMPILED_RESOURCES)
 	cp -ru $(AAPT_GEN_TMP_DIR)/* $(AAPT_GEN_DIR)/
 	-rm -fr $(AAPT_GEN_TMP_DIR)
+	
+# now we should compile the java files, now, with R.java
+# don't overwrite if it's not different, then Make won't constantly rebuild the java.
 
 
 JAVA_SRC_DIR = app/src/main/java

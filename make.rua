@@ -8,7 +8,6 @@ local path = require 'ext.path'
 local Targets = require 'make.targets'
 local targets = Targets()
 
-local home = path(os.home())
 
 -- assert or nah?
 local exec = |...|
@@ -17,40 +16,73 @@ local exec = |...|
 		return tostring(part)
 	end):concat' '))
 
+local dirsort = |p| do
+	local result = table.wrapfor(p:dir())
+	:mapi(|vk| vk[1])
+	:sort(|a,b| a.path < b.path)	-- is < in Path already?
+print('dirsort', tolua(result))
+	return result
+end
+
+assert.eq(getmetatable(_G), nil)
+setmetatable(_G, {
+	__newindex = |t,k,v|do
+		print(k,'=',v)
+		rawset(t, k, v)
+	end,
+})
 
 
-local javaFlags = '-g'
+home = path(os.home())
 
-local aapt2 = buildToolsDir/'aapt2'
+androidStudioRoot = home/'android-studio'
+
+androidSdkRoot = home/'Android/Sdk'
+platform = dirsort(androidSdkRoot/'platforms'):last()
+buildToolsVersion = dirsort(androidSdkRoot/'build-tools'):last()
+
+buildToolsDir = androidSdkRoot/'build-tools'/buildToolsVersion
+
+androidJar = androidSdkRoot/'platforms'/platform/'android.jar'
+
+javaFlags = '-classpath '..androidJar:escape()
+javaFlags ..= ' -Xlint:deprecation'
+
+d8flags = '--classpath '..androidJar:escape()
+
+
+
+javaFlags ..= ' -g'
+
+aapt2 = buildToolsDir/'aapt2'
 
 -- Use aapt2 to compile resources into compiled_resources.zip
-local resourceDir = path'nogradle/res'
-local compiledResources = path'_compiled_resources'
+resourceDir = path'nogradle/res'
+resourceFiles = table.wrapfor(resourceDir:rdir()):mapi(|vk| vk[1])
+compiledResources = path'_compiled_resources.zip'
 targets:add{
 	dsts = {
-		compiledResources,	-- TODO this is a dir, I think for timestamps I would like individual files?
+		compiledResources,
 	},
-	srcs = {
-		-- TODO find all files in resourcesDir
-	},
+	srcs = resourceFiles,
 	rule = |r|do
 		exec(aapt2, 'compile',
 			'--dir', resourceDir,
-			'-o', compiledResources..'/'	-- unescaped...
+			'-o', compiledResources
 		)
 	end,
 }
 
 -- maybe todo deal with that stupid merged-manifests crap
-local androidManifest = path'nogradle/AndroidManifest.xml'
+androidManifest = path'nogradle/AndroidManifest.xml'
 
 -- use aapt2 again to make base.apk
 
-local apkDir = path'_apk'
-local aaptGenDir = path'_gen'
-local aaptGenTmpDir = path'_gentmp'
-local assetsDir = path'app/src/main/assets'
-local apkOfResources = apkDir/'base.apk'
+apkDir = path'_apk'
+aaptGenDir = path'_gen'
+aaptGenTmpDir = path'_gentmp'
+assetsDir = path'app/src/main/assets'
+apkOfResources = apkDir/'base.apk'
 targets:add{
 	dsts = {
 		apkOfResources,
@@ -58,7 +90,7 @@ targets:add{
 	},
 	srcs = {
 		androidManifest,
-		compiledResources,	-- TODO this is a dir ... hmm ...
+		compiledResources,
 		-- TODO all files in assetsDir
 	},
 	rule = |r|do
@@ -71,27 +103,27 @@ targets:add{
 			'-I', androidJar,
 			'--manifest', androidManifest,
 			'--java', aaptGenTmpDir,
-			compiledResources..'/*.flat'	-- unescaped...
+			compiledResources
 		)
 		-- now copy and update if different only (so the timestamps of identical files don't get touched)
 		exec('cp -ru',
 			aaptGenTmpDir..'/*',	-- unescaped ...
-			aaptGenDir..'/',		-- unescaped ...
+			aaptGenDir..'/'			-- unescaped ...
 		)
 		-- now delete the temp dir
 		aaptGenTmpDir:rmdir()
 	end,
 }
 
-local javaSrcDir = path'app/src/main/java'
+javaSrcDir = path'app/src/main/java'
 -- TODO search in javaSrcDir
-local javaSrcFiles = table{
+javaSrcFiles = table{
 	path'io/github/thenumbernine/LuaJIT/Activity.java'
 }
 
-local classDir = path'_class'
+classDir = path'_class'
 -- javaClassFiles is relative to the project
-local javaClassFiles = javaSrcFiles:mapi(|fn| classDir/(fn:setext'class'))
+javaClassFiles = javaSrcFiles:mapi(|fn| classDir/(fn:setext'class'))
 
 -- this is funny because javac will make multiple files so knowing the true dests requires java introspection
 targets:add{
@@ -116,8 +148,8 @@ targets:add{
 
 -- compile .class to classes.dex
 
-local classesDexDir = path'_dex'
-local classes_dex = classesDexDir/'classes.dex'
+classesDexDir = path'_dex'
+classes_dex = classesDexDir/'classes.dex'
 targets:add{
 	dsts = {classes_dex},
 	srcs = javaClassFiles,
@@ -135,19 +167,19 @@ targets:add{
 -- compile C files as well
 
 -- multiple arch names ...
-local libArch = 'armeabi-v7a'	-- arch folder in lib/
-local ndkArch = 'armv7a'		-- arch prefix in NDK
+libArch = 'armeabi-v7a'	-- arch folder in lib/
+ndkArch = 'armv7a'		-- arch prefix in NDK
 
-local ndkVer = io.readproc('ls '..(androidSdkRoot/'ndk'):escape()):trim():split'\n':sort():last()
-local ndkDir = androidSdkRoot/'ndk'/ndkVer
-local ndkBin = ndkDir/'toolchains/llvm/prebuilt/linux-x86_64/bin'
-local ndkcc = ndkBin/(ndkArch..'-linux-androideabi35-clang')
+ndkVer = dirsort(androidSdkRoot/'ndk'):last()
+ndkDir = androidSdkRoot/'ndk'/ndkVer
+ndkBin = ndkDir/'toolchains/llvm/prebuilt/linux-x86_64/bin'
+ndkcc = ndkBin/(ndkArch..'-linux-androideabi35-clang')
 
-local cppSrcDir = path'app/src/main/cpp'
-local objDir = path'_obj'
+cppSrcDir = path'app/src/main/cpp'
+objDir = path'_obj'
 -- notice the include/ folder is created from the build scripts sitting in app/src/main/cpp/make-luajit-*.sh,
 --  which maybe I'll merge into this someday
-local cflags = '-m32 -fPIC -Wall -I '..(path'app/src/main/cpp/include'/libArch):escape()
+cflags = '-m32 -fPIC -Wall -I '..(path'app/src/main/cpp/include'/libArch):escape()
 targets:add{	-- TODO this per ndk .c/.cpp file
 	dsts = {objDir/'luajit.o'},
 	srcs = {cppSrcDir/'luajit.c'},
@@ -158,9 +190,9 @@ targets:add{	-- TODO this per ndk .c/.cpp file
 }
 
 -- compile all ndk .o files into our .so file
-local libDir = path'lib'
-local libArchDir = libDir/libArch
-local libmain_so = libArchDir/'libmain.so'
+libDir = path'lib'
+libArchDir = libDir/libArch
+libmain_so = libArchDir/'libmain.so'
 targets:add{
 	dsts = {libmain_so},
 	srcs = {objDir/'luajit.o'},	-- TODO srcs = all .o ndk built files
@@ -171,7 +203,7 @@ targets:add{
 }
 
 -- add the dex to the apk
-local apkUnalignedPath = appDir/'base-unaligned.apk'
+apkUnalignedPath = apkDir/'base-unaligned.apk'
 targets:add{
 	dsts = {apkUnalignedPath},
 	srcs = {apkOfResources, classes_dex, libmain_so},
@@ -183,7 +215,7 @@ targets:add{
 }
 
 -- use zipalign to align the unsigned apk
-local apkAlignedPath = apkDir/'base-aligned.apk'
+apkAlignedPath = apkDir/'base-aligned.apk'
 targets:add{
 	dsts = {apkAlignedPath},
 	srcs = {apkUnalignedPath},
@@ -199,8 +231,8 @@ targets:add{
 }
 
 -- sign the apk
-local apkSignedPath = apkDir/'base-signed.apk'
-local keystore = home/'.android/debug.keystore'
+apkSignedPath = apkDir/'base-signed.apk'
+keystore = home/'.android/debug.keystore'
 targets:add{
 	dsts = {apkSignedPath},
 	srcs = {apkAlignedPath},
@@ -225,5 +257,5 @@ targets:add{
 	end,
 }
 
-local target = ... or apkDir/'base-signed.apk'
+target = ... or apkSignedPath
 targets:run(target)
