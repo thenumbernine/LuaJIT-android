@@ -89,9 +89,10 @@ apkOfResources = apkDir/'base.apk'
 targets:add{
 	dsts = {
 		apkOfResources,
-		-- aaptGenDir's files:
+		--[[ aaptGenDir's files? nah, their timestamps will always trigger this rule
 		aaptGenDir/packageNamePath/'Manifest.java',
 		aaptGenDir/packageNamePath/'R.java',
+		--]]
 	},
 	srcs = table{
 		androidManifest,
@@ -122,10 +123,12 @@ targets:add{
 					aaptGenDir.path:patescape()..'/'
 				))
 			)
+--DEBUG:print('comparing copy from '..f..' to '..dstf)
 			local fdata = assert(f:read())
 			if not dstf:exists()
 			or fdata ~= assert(dstf:read())
 			then
+--DEBUG:print'...performing copy'
 				dstf:getdir():mkdir(true)
 				assert(dstf:write(fdata))
 			end
