@@ -76,23 +76,34 @@ $(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(COMPILED_RESOURCES) $(shell find $(AS
 		--manifest $(ANDROID_MANIFEST) \
 		--java $(AAPT_GEN_TMP_DIR) \
 		$(COMPILED_RESOURCES)
-	cp -ru $(AAPT_GEN_TMP_DIR)/* $(AAPT_GEN_DIR)/
+	@for f in `cd $(AAPT_GEN_TMP_DIR) && find . -type f`; do\
+		cmp -s $(AAPT_GEN_TMP_DIR)/$$f $(AAPT_GEN_DIR)/$$f \
+			&& echo "up to date: $$f" \
+			|| (mkdir -p `dirname $(AAPT_GEN_DIR)/$$f` && cp $(AAPT_GEN_TMP_DIR)/$$f $(AAPT_GEN_DIR)/$$f); \
+	done
 	-rm -fr $(AAPT_GEN_TMP_DIR)
-	
-# now we should compile the java files, now, with R.java
-# don't overwrite if it's not different, then Make won't constantly rebuild the java.
+
+# there has to be an easier way to copy files without fucking up their timestamp even if the source and destination are identical
+
+
+$(AAPT_GEN_DIR)/io/github/thenumbernine/LuaJIT/Manifest.java: $(APK_OF_RESOURCES)
+$(AAPT_GEN_DIR)/io/github/thenumbernine/LuaJIT/R.java: $(APK_OF_RESOURCES)
 
 
 JAVA_SRC_DIR = app/src/main/java
-# JAVA_SRC_FILES is relative to JAVA_SRC_DIR
-JAVA_SRC_FILES = io/github/thenumbernine/LuaJIT/Activity.java
+
+# JAVA_SRC_REL_FILES is the .java files relative to JAVA_SRC_DIR ... which is just one file
+JAVA_SRC_REL_FILES = io/github/thenumbernine/LuaJIT/Activity.java
 
 CLASS_DIR = _class
 # JAVA_CLASS_FILES is relative to project
 # dependencies should be all .class files, but that list isn't made until after javac is run, so I'll just go with the files i know it makes
-JAVA_CLASS_FILES = $(patsubst %.java, $(CLASS_DIR)/%.class, $(JAVA_SRC_FILES))
+JAVA_CLASS_FILES = $(patsubst %.java, $(CLASS_DIR)/%.class, $(JAVA_SRC_REL_FILES))
 
-$(CLASS_DIR)/io/github/thenumbernine/LuaJIT/Activity.class: $(JAVA_SRC_DIR)/io/github/thenumbernine/LuaJIT/Activity.java $(AAPT_GEN_DIR)/io/github/thenumbernine/LuaJIT/R.java
+JAVA_SRC_FILES = $(patsubst %, $(JAVA_SRC_DIR)/%, $(JAVA_SRC_REL_FILES)) \
+	$(JAVA_GEN_FILES)
+
+$(JAVA_CLASS_FILES): $(JAVA_SRC_FILES)
 	mkdir -p $(CLASS_DIR)
 	$(ANDROID_STUDIO_ROOT)/jbr/bin/javac \
 		$(JAVA_FLAGS) \

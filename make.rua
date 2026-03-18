@@ -117,13 +117,13 @@ targets:add{
 
 javaSrcDir = path'app/src/main/java'
 -- TODO search in javaSrcDir
-javaSrcFiles = table{
+javaRelSrcFiles = table{
 	path'io/github/thenumbernine/LuaJIT/Activity.java'
 }
 
 classDir = path'_class'
 -- javaClassFiles is relative to the project
-javaClassFiles = javaSrcFiles:mapi(|fn| classDir/(fn:setext'class'))
+javaClassFiles = javaRelSrcFiles:mapi(|fn| classDir/(fn:setext'class'))
 
 -- this is funny because javac will make multiple files so knowing the true dests requires java introspection
 targets:add{
