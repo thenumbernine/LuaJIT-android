@@ -36,6 +36,12 @@ setmetatable(_G, {
 packageName = 'io.github.thenumbernine.LuaJIT'
 packageNamePath = path((packageName:gsub('%.', '/')))
 
+-- multiple arch names ...
+libArch = 'armeabi-v7a'	-- arch folder in lib/
+ndkArch = 'armv7a'		-- arch prefix in NDK
+
+
+
 home = path(os.home())
 
 androidStudioRoot = home/'android-studio'
@@ -117,11 +123,14 @@ targets:add{
 			local dstf = path(
 				(f.path:gsub(
 					'^'..aaptGenTmpDir.path:patescape()..'/',
-					aaptGenDir:patescape()..'/'
+					aaptGenDir.path:patescape()..'/'
 				))
 			)
 			local fdata = assert(f:read())
-			if fdata ~= assert(dstf:read()) then
+			if not dstf:exists()
+			or fdata ~= assert(dstf:read())
+			then
+				dstf:getdir():mkdir(true)
 				assert(dstf:write(fdata))
 			end
 		end
@@ -156,7 +165,7 @@ targets:add{
 	rule = |r|do
 		classDir:mkdir(true)
 		exec(
-			androidStudioRoot'/jbr/bin/javac',
+			androidStudioRoot/'jbr/bin/javac',
 			javaFlags,
 			'-d', classDir,
 			r.srcs:unpack()
@@ -184,10 +193,6 @@ targets:add{
 
 -- compile C files as well
 
--- multiple arch names ...
-libArch = 'armeabi-v7a'	-- arch folder in lib/
-ndkArch = 'armv7a'		-- arch prefix in NDK
-
 ndkVer = dirsort(androidSdkRoot/'ndk'):last()
 ndkDir = androidSdkRoot/'ndk'/ndkVer
 ndkBin = ndkDir/'toolchains/llvm/prebuilt/linux-x86_64/bin'
@@ -202,8 +207,8 @@ targets:add{	-- TODO this per ndk .c/.cpp file
 	dsts = {objDir/'luajit.o'},
 	srcs = {cppSrcDir/'luajit.c'},
 	rule = |r|do
-		dsts[1]:getdir():mkdir(true)
-		exec(ndkcc, cflags, r.dsts[1], '-c', '-o', r.srcs[1])
+		r.dsts[1]:getdir():mkdir(true)
+		exec(ndkcc, cflags, r.srcs[1], '-c', '-o', r.dsts[1])
 	end,
 }
 
@@ -213,7 +218,7 @@ libArchDir = libDir/libArch
 libmain_so = libArchDir/'libmain.so'
 targets:add{
 	dsts = {libmain_so},
-	srcs = {objDir/'luajit.o'},	-- TODO srcs = all .o ndk built files
+	srcs = table{objDir/'luajit.o'},	-- TODO srcs = all .o ndk built files
 	rule = |r|do
 		r.dsts[1]:getdir():mkdir(true)
 		exec(ndkcc, '-shared', '-L'..libArchDir, '-lluajit', '-o', r.dsts[1], r.srcs:unpack())
@@ -276,7 +281,7 @@ targets:add{
 }
 
 target = ... or apkSignedPath
-_=({
+local f = ({
 	install = ||do
 		targets:run(apkSignedPath)
 		exec('adb install', apkSignedPath)
@@ -295,9 +300,11 @@ _=({
 			compiledResources,
 			classDir,
 			classesDexDir,
+			objDir,
 			aaptGenDir,
 			aaptGenTmpDir,
 			apkDir
 		)
 	end,
-})[target] or targets:run(target)
+})[target]
+if f then f() else targets:run(target) end

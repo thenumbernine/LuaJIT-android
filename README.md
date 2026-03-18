@@ -27,6 +27,8 @@ Same is true for themes.  They have to all be present in xml files at compile ti
 
 2) The Makefile works.  It runs on a few MB instead of a few GB, that's why I use it over Gradle.
 
+3) The `make.rua` works.  If you want a full script to do your building and if you want better error debugging than GNU Make then it is nice.
+
 # TODO:
 
 - write a script to replace the classnames and app name and rename the .java file.

@@ -5,6 +5,14 @@
 PACKAGE_NAME = io.github.thenumbernine.LuaJIT
 PACKAGE_NAME_PATH = $(subst .,/,$(PACKAGE_NAME))
 
+# arch folder in lib/
+LIB_ARCH=armeabi-v7a
+# arch prefix in NDK
+NDK_ARCH=armv7a
+
+
+
+
 ANDROID_STUDIO_ROOT = $(HOME)/android-studio
 
 ANDROID_SDK_ROOT = $(HOME)/Android/Sdk
@@ -129,11 +137,6 @@ $(CLASSES_DEX): $(JAVA_SRC_CLASS_FILES)
 
 # compile C files as well
 
-# arch folder in lib/
-LIB_ARCH=armeabi-v7a
-# arch prefix in NDK
-NDK_ARCH=armv7a
-
 NDK_VER = $(shell ls $(ANDROID_SDK_ROOT)/ndk | sort -nr | tail -1)
 NDK_DIR=$(ANDROID_SDK_ROOT)/ndk/$(NDK_VER)
 NDK_BIN=$(NDK_DIR)/toolchains/llvm/prebuilt/linux-x86_64/bin
@@ -203,6 +206,7 @@ clean:
 		$(COMPILED_RESOURCES) \
 		$(CLASS_DIR) \
 		$(CLASSES_DEX_DIR) \
+		$(OBJ_DIR) \
 		$(AAPT_GEN_DIR) \
 		$(AAPT_GEN_TMP_DIR) \
 		$(APK_DIR)
