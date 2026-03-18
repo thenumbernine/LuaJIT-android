@@ -152,12 +152,22 @@ $(OBJ_DIR)/luajit.o: $(CPP_SRC_DIR)/luajit.c
 	$(NDKCC) $(CFLAGS) $^ -c -o $@
 
 # compile all ndk .o files into our .so file
+# TODO just use the app/src/main/jniLibs/ folder
 LIB_DIR = lib
 LIB_ARCH_DIR = $(LIB_DIR)/$(LIB_ARCH)
 LIBMAIN_SO = $(LIB_ARCH_DIR)/libmain.so
 $(LIBMAIN_SO): $(OBJ_DIR)/luajit.o
 	mkdir -p $(LIB_ARCH_DIR)
 	$(NDKCC) -shared -L$(LIB_ARCH_DIR) -lluajit -o $@ $^
+
+# make sure luajit.so is there
+
+LUAJIT_SO = $(LIB_ARCH_DIR)/libluajit.so
+# dependencies? a lot?
+$(LUAJIT_SO): 
+	$(shell cd app/src/main/cpp && ./make-luajit-$(NDK_ARCH).sh)
+	cp app/src/main/jniLibs/$(LIB_ARCH)/libluajit.so $(LUAJIT_SO)
+	cp -R app/src/main/cpp/jit/$(LIB_ARCH) app/src/main/assets/jit
 
 # now add the dex to the apk
 

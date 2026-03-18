@@ -14,6 +14,9 @@ local J = require 'java'
 
 local callbacks = {}
 
+local nextMenuID = 0
+local getNextMenu = || nextMenuID :+= 1
+
 -- maybe I should by default make all handlers that call through to super ...
 do
 	local Activity = J.android.app.Activity
@@ -34,6 +37,192 @@ do
 	end
 end
 
+
+-- [=======[ attempt at just outputting the out.txt file
+
+local logScrollView
+--local observer
+--local viewSwitcher
+
+local prevOnCreate = callbacks.onCreate
+callbacks.onCreate = function(activity, savedInstanceState)
+	prevOnCreate(activity, savedInstanceState)
+
+	local ViewGroup = J.android.view.ViewGroup
+
+	local textView = J.android.widget.TextView(activity)
+	textView:setLayoutParams(ViewGroup.LayoutParams(
+		ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+	))
+	textView:setPadding(16, 16, 16, 16)
+	textView:setTypeface(J.android.graphics.Typeface.MONOSPACE)
+	textView:setTextSize(J.android.util.TypedValue.COMPLEX_UNIT_SP, 12)
+
+	logScrollView = J.android.widget.ScrollView(activity)
+	logScrollView:setLayoutParams(ViewGroup.LayoutParams(
+		ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+	))
+	logScrollView:addView(textView)
+
+
+	--[=[
+print('creating ObserverRunnable...')
+	local ObserverRunnable = J.Runnable:_subclass{
+		isPublic = true,
+		fields = {
+			textView = {
+				isPublic = true,
+				isStatic = true,
+				sig = textView._classpath,
+			},
+		},
+		methods = {
+			run = {
+				isPublic = true,
+				sig = {'void'},
+				newLuaState = true,	-- back to the old thread but let's be safe?
+				value = function(J, this)
+					-- refreshFileContent:
+					this.textView:setText(path'out.txt':read() or '')
+				end,
+			},
+		}
+	}
+	ObserverRunnable.textView = textView
+print('created ObserverRunnable.')
+
+print('activity._classpath', activity._classpath)
+print('ObserverRunnable._classpath', ObserverRunnable._classpath)
+print('creating FileObserver...')
+	local Observer = J.android.os.FileObserver:_subclass{
+		isPublic = true,
+		fields = {
+			activity = {
+				isPublic = true,
+				sig = activity._classpath,
+			},
+			-- if I pass runnable in here, lua-java tries to query its class's reflection and android segfaults because android is retarded
+			runnableClass = {
+				isPublic = true,
+				sig = 'java.lang.Class',
+			},
+		},
+		methods = {
+			onEvent = {
+				isPublic = true,
+				sig = {'void', 'int', 'java.lang.String'},
+				newLuaState = true,	-- new thread, new lua state
+				value = function(J, this, event, path)	-- newLuaState means 'J' first
+
+					--[[
+					this.activity:runOnUiThread(this.runnable)
+					--]]
+					-- [[ hmm segfaulting but outside of this call
+					local ctor = this.runnableClass:getDeclaredConstructor()
+					local runnable = ctor:newInstance()
+					this.activity:runOnUiThread(runnable:_cast'java.lang.Runnable')
+					--]]
+				end,
+			},
+		},
+	}
+print('created FileObserver.')
+	local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
+	local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
+	observer.activity = activity
+	observer.runnableClass = ObserverRunnable.class
+
+	-- refreshFileContent:
+	textView:setText(path'out.txt':read() or '')
+
+	-- this gets a weird error:
+	-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
+	observer:startWatching()
+
+print"onCreate DONE"
+	--]=]
+	-- [=[ same but without FileObserver, just run a callback and watch the file and update
+	local logFile = J.java.io.File'out.txt'
+	local lastTextTime = logFile:lastModified()
+	textView:setText(path'out.txt':read() or '')
+	local Looper = J.android.os.Looper
+	handler = J.android.os.Handler(Looper:getMainLooper())
+
+	local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
+		logScrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
+	end)
+
+	logUpdater = J.Runnable(function()
+		local thisTextTime = logFile:lastModified()
+		if thisTextTime > lastTextTime then
+			lastTextTime = thisTextTime
+
+			local isAtBottom = logScrollView:canScrollVertically(1)
+
+			textView:setText(path'out.txt':read() or '')
+
+			if isAtBottom then
+				logScrollView:post(ScrollToBottomRunnable())
+			end
+		end
+		handler:postDelayed(this, 2000)
+	end)
+	--]=]
+
+	--[[ single view
+	activity:setContentView(logScrollView)
+	--]]
+	--[[ view switcher
+	viewSwitcher = J.android.widget.ViewSwitcher(activity)
+	viewSwitcher:addView(logScrollView)
+	--]]
+end
+
+local prevOnResume = callbacks.onResume
+callbacks.onResume = function(activity)
+	prevOnResume(activity)
+	handler:post(logUpdater)
+end
+
+local prevOnPause = callbacks.onPause
+callbacks.onPause = function(activity)
+	prevOnPause(activity)
+	handler:removeCallbacks(logUpdater)
+end
+
+local prevOnDestroy = callbacks.onDestroy
+callbacks.onDestroy = function(activity)
+	prevOnDestroy(activity)
+	--[[
+	if observer then observer:stopWatching() end
+	--]]
+end
+
+local menuOpenLog = getNextMenu()
+local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
+callbacks.onCreateOptionsMenu = function(activity, menu, ...)
+	prevOnCreateOptionsMenu(activity, menu, ...)
+	menu:add(0, menuOpenLog, 0, 'Open Log')
+		:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
+	return true
+end
+
+
+local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
+callbacks.onOptionsItemSelected = function(activity, item, ...)
+	if item:getItemId() == menuOpenLog then
+		-- [[ open the log ... but doesn't use back buttons
+		activity:setContentView(logScrollView)
+		--]]
+		--[[ open ?
+		viewSwitcher:showNext()	-- do you have any control over what view is going to be shown, or did retards make Android?
+		--]]
+	end
+	
+	return prevOnOptionsItemSelected(activity, item, ...)
+end
+
+--]=======]
 
 --[=======[ directory image gallery example
 
@@ -164,155 +353,6 @@ local callbacks = {
 		end
 	end,
 }
-
---]=======]
--- [=======[ attempt at just outputting the out.txt file
-
-local observer
-local prevOnCreate = callbacks.onCreate
-callbacks.onCreate = function(activity, savedInstanceState)
-	prevOnCreate(activity, savedInstanceState)
-
-	local ViewGroup = J.android.view.ViewGroup
-
-	local textView = J.android.widget.TextView(activity)
-	textView:setLayoutParams(ViewGroup.LayoutParams(
-		ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-	))
-	textView:setPadding(16, 16, 16, 16)
-	textView:setTypeface(J.android.graphics.Typeface.MONOSPACE)
-	textView:setTextSize(J.android.util.TypedValue.COMPLEX_UNIT_SP, 12)
-
-	local scrollView = J.android.widget.ScrollView(activity)
-	scrollView:setLayoutParams(ViewGroup.LayoutParams(
-		ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-	))
-	scrollView:addView(textView)
-
-	activity:setContentView(scrollView)
-
-	--[=[
-print('creating ObserverRunnable...')
-	local ObserverRunnable = J.Runnable:_subclass{
-		isPublic = true,
-		fields = {
-			textView = {
-				isPublic = true,
-				isStatic = true,
-				sig = textView._classpath,
-			},
-		},
-		methods = {
-			run = {
-				isPublic = true,
-				sig = {'void'},
-				newLuaState = true,	-- back to the old thread but let's be safe?
-				value = function(J, this)
-					-- refreshFileContent:
-					this.textView:setText(path'out.txt':read() or '')
-				end,
-			},
-		}
-	}
-	ObserverRunnable.textView = textView
-print('created ObserverRunnable.')
-
-print('activity._classpath', activity._classpath)
-print('ObserverRunnable._classpath', ObserverRunnable._classpath)
-print('creating FileObserver...')
-	local Observer = J.android.os.FileObserver:_subclass{
-		isPublic = true,
-		fields = {
-			activity = {
-				isPublic = true,
-				sig = activity._classpath,
-			},
-			-- if I pass runnable in here, lua-java tries to query its class's reflection and android segfaults because android is retarded
-			runnableClass = {
-				isPublic = true,
-				sig = 'java.lang.Class',
-			},
-		},
-		methods = {
-			onEvent = {
-				isPublic = true,
-				sig = {'void', 'int', 'java.lang.String'},
-				newLuaState = true,	-- new thread, new lua state
-				value = function(J, this, event, path)	-- newLuaState means 'J' first
-
-					--[[
-					this.activity:runOnUiThread(this.runnable)
-					--]]
-					-- [[ hmm segfaulting but outside of this call
-					local ctor = this.runnableClass:getDeclaredConstructor()
-					local runnable = ctor:newInstance()
-					this.activity:runOnUiThread(runnable:_cast'java.lang.Runnable')
-					--]]
-				end,
-			},
-		},
-	}
-print('created FileObserver.')
-	local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
-	local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
-	observer.activity = activity
-	observer.runnableClass = ObserverRunnable.class
-
-	-- refreshFileContent:
-	textView:setText(path'out.txt':read() or '')
-
-	-- this gets a weird error:
-	-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
-	observer:startWatching()
-
-print"onCreate DONE"
-	--]=]
-	-- [=[ same but without FileObserver, just run a callback and watch the file and update
-	local logFile = J.java.io.File'out.txt'
-	local lastTextTime = logFile:lastModified()
-	textView:setText(path'out.txt':read() or '')
-	local Looper = J.android.os.Looper
-	handler = J.android.os.Handler(Looper:getMainLooper())
-
-	local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
-		scrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
-	end)
-
-	logUpdater = J.Runnable(function()
-		local thisTextTime = logFile:lastModified()
-		if thisTextTime > lastTextTime then
-			lastTextTime = thisTextTime
-
-			local isAtBottom = scrollView:canScrollVertically(1)
-
-			textView:setText(path'out.txt':read() or '')
-
-			if isAtBottom then
-				scrollView:post(ScrollToBottomRunnable())
-			end
-		end
-		handler:postDelayed(this, 2000)
-	end)
-	--]=]
-end
-
-local prevOnResume = callbacks.onResume
-callbacks.onResume = function(activity)
-	prevOnResume(activity)
-	handler:post(logUpdater)
-end
-
-local prevOnPause = callbacks.onPause
-callbacks.onPause = function(activity)
-	prevOnPause(activity)
-	handler:removeCallbacks(logUpdater)
-end
-
-local prevOnDestroy = callbacks.onDestroy
-callbacks.onDestroy = function(activity)
-	prevOnDestroy(activity)
-	if observer then observer:stopWatching() end
-end
 
 --]=======]
 --[=======[ bluetooth scanner example ... gets back nothing and no errors *shrug*
