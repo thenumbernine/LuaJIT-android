@@ -17,7 +17,7 @@ local callbacks = {}
 local nextMenuID = 0
 local function getNextMenu()
 	nextMenuID = nextMenuID + 1
-	return nextMenuID 
+	return nextMenuID
 end
 
 -- maybe I should by default make all handlers that call through to super ...
@@ -44,8 +44,9 @@ end
 -- [=======[ attempt at just outputting the out.txt file
 do
 	local logScrollView
-	--local observer
 	--local viewSwitcher
+	local logObserver
+	local logUpdater
 
 	local prevOnCreate = callbacks.onCreate
 	callbacks.onCreate = function(activity, savedInstanceState, ...)
@@ -67,9 +68,13 @@ do
 		))
 		logScrollView:addView(textView)
 
+		local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
+			logScrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
+		end)
 
-		--[=[
-	print('creating ObserverRunnable...')
+
+		--[=[ still segfaulting
+print('creating ObserverRunnable...')
 		local ObserverRunnable = J.Runnable:_subclass{
 			isPublic = true,
 			fields = {
@@ -92,11 +97,11 @@ do
 			}
 		}
 		ObserverRunnable.textView = textView
-	print('created ObserverRunnable.')
+print('created ObserverRunnable.')
 
-	print('activity._classpath', activity._classpath)
-	print('ObserverRunnable._classpath', ObserverRunnable._classpath)
-	print('creating FileObserver...')
+print('activity._classpath', activity._classpath)
+print('ObserverRunnable._classpath', ObserverRunnable._classpath)
+print('creating FileObserver...')
 		local Observer = J.android.os.FileObserver:_subclass{
 			isPublic = true,
 			fields = {
@@ -116,7 +121,6 @@ do
 					sig = {'void', 'int', 'java.lang.String'},
 					newLuaState = true,	-- new thread, new lua state
 					value = function(J, this, event, path)	-- newLuaState means 'J' first
-
 						--[[
 						this.activity:runOnUiThread(this.runnable)
 						--]]
@@ -129,20 +133,18 @@ do
 				},
 			},
 		}
-	print('created FileObserver.')
+print('created FileObserver.')
 		local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
-		local observer = Observer(fileToWatch:getPath(), Observer.MODIFY)
-		observer.activity = activity
-		observer.runnableClass = ObserverRunnable.class
+		logObserver = Observer(fileToWatch:getPath(), Observer.MODIFY)
+		logObserver.activity = activity
+		logObserver.runnableClass = ObserverRunnable.class
 
 		-- refreshFileContent:
 		textView:setText(path'out.txt':read() or '')
 
 		-- this gets a weird error:
 		-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
-		observer:startWatching()
-
-	print"onCreate DONE"
+		logObserver:startWatching()
 		--]=]
 		-- [=[ same but without FileObserver, just run a callback and watch the file and update
 		local logFile = J.java.io.File'out.txt'
@@ -150,10 +152,6 @@ do
 		textView:setText(path'out.txt':read() or '')
 		local Looper = J.android.os.Looper
 		handler = J.android.os.Handler(Looper:getMainLooper())
-
-		local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
-			logScrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
-		end)
 
 		logUpdater = J.Runnable(function()
 			local thisTextTime = logFile:lastModified()
@@ -172,6 +170,7 @@ do
 		end)
 		--]=]
 
+
 		--[[ single view
 		activity:setContentView(logScrollView)
 		--]]
@@ -179,26 +178,32 @@ do
 		viewSwitcher = J.android.widget.ViewSwitcher(activity)
 		viewSwitcher:addView(logScrollView)
 		--]]
+
+print"onCreate DONE"
 	end
 
 	local prevOnResume = callbacks.onResume
 	callbacks.onResume = function(activity)
 		prevOnResume(activity)
-		handler:post(logUpdater)
+		if logUpdater then
+			handler:post(logUpdater)
+		end
 	end
 
 	local prevOnPause = callbacks.onPause
 	callbacks.onPause = function(activity)
 		prevOnPause(activity)
-		handler:removeCallbacks(logUpdater)
+		if logUpdater then
+			handler:removeCallbacks(logUpdater)
+		end
 	end
 
 	local prevOnDestroy = callbacks.onDestroy
 	callbacks.onDestroy = function(activity)
 		prevOnDestroy(activity)
-		--[[
-		if observer then observer:stopWatching() end
-		--]]
+		if logObserver then
+			logObserver:stopWatching()
+		end
 	end
 
 	local menuOpenLog = getNextMenu()
@@ -221,7 +226,7 @@ do
 			viewSwitcher:showNext()	-- do you have any control over what view is going to be shown, or did retards make Android?
 			--]]
 		end
-		
+
 		return prevOnOptionsItemSelected(activity, item, ...)
 	end
 end
@@ -327,20 +332,20 @@ do
 
 		scrollView:addView(gridLayout)
 		root:addView(scrollView)
-	
+
 		--[[
 		activity:setContentView(root)
 		--]]
 	end
 
-	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu 
+	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
 	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
 		menu:add(0, menuChooseFolder, 0, 'Choose Folder')
 			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
 		return prevOnCreateOptionsMenu(activity, menu, ...)
 	end
 
-	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected 
+	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
 	callbacks.onOptionsItemSelected = function(activity, item, ...)
 		local function openFolderPicker()
 			local intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
@@ -418,7 +423,7 @@ do
 					end
 				end
 			end
-		
+
 			-- finally, show the root
 			activity:setContentView(root)
 		end
