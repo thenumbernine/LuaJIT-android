@@ -20,6 +20,12 @@ local function getNextMenu()
 	return nextMenuID
 end
 
+local nextActivityID = J.android.app.Activity.RESULT_FIRST_USER
+local function getNextActivity()
+	nextActivityID = nextActivityID + 1
+	return nextActivityID
+end
+
 -- maybe I should by default make all handlers that call through to super ...
 do
 	local Activity = J.android.app.Activity
@@ -71,7 +77,6 @@ do
 		local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
 			logScrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
 		end)
-
 
 		--[=[ still segfaulting
 print('creating ObserverRunnable...')
@@ -210,7 +215,7 @@ print"onCreate DONE"
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
 	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
 		prevOnCreateOptionsMenu(activity, menu, ...)
-		menu:add(0, menuOpenLog, 0, 'Open Log')
+		menu:add(0, menuOpenLog, 0, 'Log...')
 			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
 		return true
 	end
@@ -302,9 +307,10 @@ do
 	local ViewGroup = J.android.view.ViewGroup
 	local ImageView = J.android.widget.ImageView
 
-	local menuChooseFolder = getNextMenu()
+	local menuPickGalleryFolder = getNextMenu()
+	local menuPickGalleryFolderOpen = getNextActivity()
 
-	local root
+	local galleryRootLayout
 	local gridLayout
 
 	-- these callbacks are centered around the original activity
@@ -314,14 +320,14 @@ do
 	callbacks.onCreate = function(activity, ...)
 		prevOnCreate(activity, ...)
 
-		root = LinearLayout(activity)
-		root:setLayoutParams(ViewGroup.LayoutParams(-1, -1))
+		galleryRootLayout = LinearLayout(activity)
+		galleryRootLayout:setLayoutParams(ViewGroup.LayoutParams(-1, -1))
 
 		local toolbar = J.android.widget.Toolbar(activity)
 		toolbar:setTitle'Image Preview Grid'
 		toolbar:setBackgroundColor(0xFF6200EE)
 		toolbar:setTitleTextColor(0xFFFFFFFF)
-		root:addView(toolbar)
+		galleryRootLayout:addView(toolbar)
 
 		local scrollView = J.android.widget.ScrollView(activity)
 		scrollView:setLayoutParams(LinearLayout.LayoutParams(-1, -1))
@@ -331,30 +337,26 @@ do
 		gridLayout:setLayoutParams(ViewGroup.LayoutParams(-1, -2))	-- WRAP_CONTENT height
 
 		scrollView:addView(gridLayout)
-		root:addView(scrollView)
+		galleryRootLayout:addView(scrollView)
 
 		--[[
-		activity:setContentView(root)
+		activity:setContentView(galleryRootLayout)
 		--]]
 	end
 
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
 	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
-		menu:add(0, menuChooseFolder, 0, 'Choose Folder')
+		menu:add(0, menuPickGalleryFolder, 0, 'Pictures...')
 			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
 		return prevOnCreateOptionsMenu(activity, menu, ...)
 	end
 
 	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
 	callbacks.onOptionsItemSelected = function(activity, item, ...)
-		local function openFolderPicker()
+		if item:getItemId() == menuPickGalleryFolder then
 			local intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
 			intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-			activity:startActivityForResult(intent, 9999)
-		end
-
-		if item:getItemId() == menuChooseFolder then
-			openFolderPicker()
+			activity:startActivityForResult(intent, menuPickGalleryFolderOpen)
 			return true
 		end
 
@@ -365,14 +367,13 @@ do
 	callbacks.onActivityResult = function(activity, requestCode, resultCode, data)
 		prevOnActivityResult(activity, requestCode, resultCode, data)
 
-		if requestCode:intValue() == 9999
+		if requestCode:intValue() == menuPickGalleryFolderOpen
 		and resultCode:intValue() == Activity.RESULT_OK
 		then
 			local treeUri = data:getData()
-
 			activity:getContentResolver():takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-
 			local files = {}
+
 			--[[ androidx method
 			local directory = J.androidx.documentfile.provider.DocumentFile:fromTreeUri(activity, treeUri)
 			for file in directory:listFiles():_iter() do
@@ -388,7 +389,7 @@ do
 				treeUri,
 				DocumentsContract:getTreeDocumentId(treeUri)
 			)
-			-- TODO build string from Lua table...
+			-- build string from Lua table...
 			local cols = J:_newArray(J.String, 3);
 			cols[0] = DocumentsContract.Document.COLUMN_DISPLAY_NAME;
 			cols[1] = DocumentsContract.Document.COLUMN_DOCUMENT_ID;
@@ -424,8 +425,128 @@ do
 				end
 			end
 
-			-- finally, show the root
-			activity:setContentView(root)
+			-- finally, show the galleryRootLayout
+			activity:setContentView(galleryRootLayout)
+		end
+	end
+end
+--]=======]
+-- [=======[ mp3 player also?
+do
+	local Activity = J.android.app.Activity
+	local Intent = J.android.content.Intent
+
+	local menuPickMusicFolder = getNextMenu()
+	local menuPickMusicFolderOpen = getNextActivity()
+
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, ...)
+		prevOnCreate(activity, ...)
+	end
+
+	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
+	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
+		menu:add(0, menuPickMusicFolder, 0, 'Music...')
+			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
+		return prevOnCreateOptionsMenu(activity, menu, ...)
+	end
+
+	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
+	callbacks.onOptionsItemSelected = function(activity, item, ...)
+		if item:getItemId() == menuPickMusicFolder then
+			local intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+			intent:addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+			activity:startActivityForResult(intent, menuPickMusicFolderOpen)
+			return true
+		end
+
+		return prevOnOptionsItemSelected(activity, item, ...)
+	end
+
+	local prevOnActivityResult = callbacks.onActivityResult
+	callbacks.onActivityResult = function(activity, requestCode, resultCode, data)
+		prevOnActivityResult(activity, requestCode, resultCode, data)
+
+		if requestCode:intValue() == menuPickMusicFolderOpen
+		and resultCode:intValue() == Activity.RESULT_OK
+		then
+			-- do your thing
+			-- [[ get files back from directory picker -- same as gallery
+			local treeUri = data:getData()
+			activity:getContentResolver():takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+			local files = {}
+
+			local DocumentsContract = J.android.provider.DocumentsContract
+			local childrenUri = DocumentsContract:buildChildDocumentsUriUsingTree(
+				treeUri,
+				DocumentsContract:getTreeDocumentId(treeUri)
+			)
+			-- build string from Lua table...
+			local cols = J:_newArray(J.String, 3);
+			cols[0] = DocumentsContract.Document.COLUMN_DISPLAY_NAME;
+			cols[1] = DocumentsContract.Document.COLUMN_DOCUMENT_ID;
+			cols[2] = DocumentsContract.Document.COLUMN_MIME_TYPE;
+			local cursor = activity:getContentResolver():query(childrenUri, cols, nil, nil, nil)
+			while cursor:moveToNext() do
+				local displayName = cursor:getString(0)
+				local docId = cursor:getString(1)
+				local fileType = cursor:getString(2)
+				local fileUri = DocumentsContract:buildDocumentUriUsingTree(treeUri, docId)
+				table.insert(files, {
+					type = fileType and tostring(fileType),
+					uri = fileUri,
+				})
+			end
+			cursor:close()
+			---]]
+	
+			local audios = table()
+			for _,file in ipairs(files) do
+				local fileType = file.type
+				if fileType and fileType:match'^audio/' then
+					audios:insert(file)
+				end
+			end
+			audios:sort(function(a,b) return tostring(a.uri) < tostring(b.uri) end)
+			if #audios == 0 then
+				print"COULDN'T FIND ANY AUDIO"
+			else
+				local MediaPlayer = J.android.media.MediaPlayer
+				-- play
+				local mediaPlayer = MediaPlayer:create(
+					activity,
+					audios[1].uri
+					-- surface holder
+				)
+				
+				--[[
+				--TODO
+				local playButton = J.android.os.Button(activity)
+				playButton:setText("Play")
+				playButton:setOnClickListener(function() mediaPlayer:start() end)
+				
+				local pauseButton = J.android.os.Button(activity)
+				pauseButton:setText("Play")
+				pauseButton:setOnClickListener(function() mediaPlayer:pause() end)
+				
+				-- TODO add a bunch of list items of tracks who have click callbacks to start playing that track
+				--]]
+
+				local audioIndex = 1	-- bump and play
+				local function loadNextTrack()
+					-- load the next track from audios
+					audioIndex = audioIndex + 1
+					if audioIndex <= #audios then
+						mediaPlayer:setDataSource(activity, audios[audioIndex].uri)
+						mediaPlayer:start()
+					end
+				end
+
+				mediaPlayer:setOnCompletionListener(MediaPlayer.OnCompletionListener(loadNextTrack))
+
+				--loadNextTrack()
+				mediaPlayer:start()
+			end
 		end
 	end
 end
