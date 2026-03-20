@@ -436,7 +436,7 @@ do
 	end
 end
 --]=======]
--- [=======[ mp3 player also?
+-- [=======[ audio player also?
 do
 	local Activity = J.android.app.Activity
 	local Intent = J.android.content.Intent
@@ -589,6 +589,89 @@ _G.audios = audios	-- don't gc
 				activity:setContentView(musicListView)
 			end
 		end
+	end
+end
+--]=======]
+-- [=======[ GLES view?
+do
+	local Activity = J.android.app.Activity
+	local Intent = J.android.content.Intent
+	local GLSurfaceView = J.android.opengl.GLSurfaceView
+	local GLES3 = J.android.opengl.GLES30
+
+	local glMenuPickFolder = getNextMenu()
+
+	local glView
+
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, ...)
+		prevOnCreate(activity, ...)
+		
+		glView = GLSurfaceView(activity)
+		glView:setEGLContextClientVersion(3) -- GLES3.0
+		
+		local Renderer = GLSurfaceView.Renderer:_subclass{
+			isPublic = true,
+			methods = {
+				onSurfaceCreated = {
+					isPublic = true,
+					newLuaState = true,	-- TODO new lua state management ... one per method or one per class etc? or automatically detect/generate with pthread_self ?
+					sig = {'void', 'javax.microedition.khronos.opengles.GL10', 'javax.microedition.khronos.egl.EGLConfig'},
+					value = function(this, gl, config)
+						GLES30:glClearColor(0,.5,1,1)
+					end,
+				},
+				onSurfaceChanged = {
+					isPublic = true,
+					newLuaState = true,	-- TODO new lua state management ... one per method or one per class etc?
+					sig = {'void', 'javax.microedition.khronos.opengles.GL10', 'int', 'int'},
+					value = function(this, gl, width, height)
+						GLES30:glViewport(0,0,width,height)
+					end,
+				},
+				onDrawFrame = {
+					isPublic = true,
+					newLuaState = true,	-- TODO new lua state management ... one per method or one per class etc?
+					sig = {'void', 'javax.microedition.khronos.opengles.GL10'},
+					value = function(this, gl)
+						GLES30:glClear(GLES30.GL_COLOR_BUFFER_BIT)
+					
+						-- do something GL here
+					end,
+				},
+			},
+		}
+
+		glView:setRenderer(renderer)
+	end
+
+	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
+	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
+		menu:add(0, glMenuPickFolder, 0, 'GLES...')
+			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
+		return prevOnCreateOptionsMenu(activity, menu, ...)
+	end
+
+	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
+	callbacks.onOptionsItemSelected = function(activity, item, ...)
+		if item:getItemId() == glMenuPickFolder then
+			activity:setContentView(glView)
+			return true
+		end
+
+		return prevOnOptionsItemSelected(activity, item, ...)
+	end
+
+	local prevOnPause = callbacks.onPause
+	callbacks.onPause = function(activity, ...)
+		prevOnPause(activity, ...)
+		glView:onPause()
+	end
+
+	local prevOnResume = callbacks.onResume
+	callbacks.onResume = function(activity, ...)
+		prevOnResume(activity, ...)
+		glView:onResume()
 	end
 end
 --]=======]
