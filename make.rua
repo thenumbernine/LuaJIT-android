@@ -79,6 +79,27 @@ targets:add{
 -- maybe todo deal with that stupid merged-manifests crap
 androidManifest = path'nogradle/AndroidManifest.xml'
 
+local function copyIfDiffer(src, dst)
+	local data = assert(src:read())
+	if not dst:exists()
+	or data ~= assert(dst:read())
+	then
+		dst:getdir():mkdir(true)
+		assert(dst:write(data))
+	else
+		print('up to date: '..dst)
+	end
+end
+
+-- update assets patched contents:
+targets:add{
+	dsts = {path'app/src/main/assets/lua/lua.lua'},
+	srcs = {path'assets_patch/lua/lua.lua'},
+	rule = |r|do
+		copyIfDiffer(r.srcs[1], r.dsts[1])
+	end,
+}
+
 -- use aapt2 again to make base.apk
 
 apkDir = path'_apk'
@@ -123,15 +144,7 @@ targets:add{
 					aaptGenDir.path:patescape()..'/'
 				))
 			)
---DEBUG:print('comparing copy from '..f..' to '..dstf)
-			local fdata = assert(f:read())
-			if not dstf:exists()
-			or fdata ~= assert(dstf:read())
-			then
---DEBUG:print'...performing copy'
-				dstf:getdir():mkdir(true)
-				assert(dstf:write(fdata))
-			end
+			copyIfDiffer(f, dstf)
 		end
 		-- now delete the temp dir
 		aaptGenTmpDir:rmdir()
@@ -224,11 +237,31 @@ targets:add{
 	end,
 }
 
+-- make sure luajit.so is there
+
+luajit_so = libArchDir/'libluajit.so'
+targets:add{
+	dsts = {luajit_so},
+	srcs = table.wrapfor(path'app/src/main/cpp/luajit':rdir())
+		:mapi(|vk| vk[1])
+		:filteri(|fn| select(2, fn:getext()) == 'c'),
+	rule = |r|do
+		exec('cd app/src/main/cpp',
+			'&& ./make-luajit-'..ndkArch..'.sh')
+		exec('cp',
+			'app/src/main/jniLibs/'..libArch..'/libluajit.so',
+			luajit_so)
+		exec('cp -R',
+			'app/src/main/cpp/jit/'..libArch,
+			'app/src/main/assets/jit')
+	end,
+}
+
 -- add the dex to the apk
 apkUnalignedPath = apkDir/'base-unaligned.apk'
 targets:add{
 	dsts = {apkUnalignedPath},
-	srcs = {apkOfResources, classes_dex, libmain_so},
+	srcs = {apkOfResources, classes_dex, libmain_so, luajit_so},
 	rule = |r|do
 		exec('cp', apkOfResources, apkUnalignedPath)
 		exec('zip -j', apkUnalignedPath, classes_dex)

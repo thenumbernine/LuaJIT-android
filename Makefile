@@ -67,6 +67,12 @@ $(COMPILED_RESOURCES): $(shell find $(RESOURCE_DIR) -type f)
 # so I'll just hack it myself, bypass their slow and retarded tool
 ANDROID_MANIFEST = nogradle/AndroidManifest.xml
 
+# update assets patched contents:
+app/src/main/assets/lua/lua.lua: assets_patch/lua/lua.lua
+	cmp -s $< $@ \
+		&& echo "up to date: $@" \
+		|| (mkdir -p `dirname $@` && cp $< $@);
+
 # use aapt2 again to make base.apk
 # this errors that the manifest is missing package, because it's not a merged-manifest
 # this populates _gen/ with $(PACKAGE_NAME_PATH)/ Manifest.java and R.java
@@ -152,7 +158,7 @@ $(OBJ_DIR)/luajit.o: $(CPP_SRC_DIR)/luajit.c
 	$(NDKCC) $(CFLAGS) $^ -c -o $@
 
 # compile all ndk .o files into our .so file
-# TODO just use the app/src/main/jniLibs/ folder
+# TODO just use the app/src/main/jniLibs/$(LIB_ARCH) folder
 LIB_DIR = lib
 LIB_ARCH_DIR = $(LIB_DIR)/$(LIB_ARCH)
 LIBMAIN_SO = $(LIB_ARCH_DIR)/libmain.so
@@ -164,7 +170,7 @@ $(LIBMAIN_SO): $(OBJ_DIR)/luajit.o
 
 LUAJIT_SO = $(LIB_ARCH_DIR)/libluajit.so
 # dependencies? a lot?
-$(LUAJIT_SO):
+$(LUAJIT_SO): $(shell find app/src/main/cpp/luajit -type f -name "*.c")
 	$(shell cd app/src/main/cpp && ./make-luajit-$(NDK_ARCH).sh)
 	cp app/src/main/jniLibs/$(LIB_ARCH)/libluajit.so $(LUAJIT_SO)
 	cp -R app/src/main/cpp/jit/$(LIB_ARCH) app/src/main/assets/jit
@@ -172,7 +178,7 @@ $(LUAJIT_SO):
 # now add the dex to the apk
 
 APK_UNALIGNED_PATH = $(APK_DIR)/base-unaligned.apk
-$(APK_UNALIGNED_PATH): $(APK_OF_RESOURCES) $(CLASSES_DEX) $(LIBMAIN_SO)
+$(APK_UNALIGNED_PATH): $(APK_OF_RESOURCES) $(CLASSES_DEX) $(LIBMAIN_SO) $(LUAJIT_SO)
 	cp $(APK_OF_RESOURCES) $(APK_UNALIGNED_PATH)
 	zip -j $(APK_UNALIGNED_PATH) $(CLASSES_DEX)
 	zip -r -0 -u $(APK_UNALIGNED_PATH) $(LIB_DIR)/

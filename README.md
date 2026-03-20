@@ -23,11 +23,14 @@ Same is true for themes.  They have to all be present in xml files at compile ti
 
 # Build:
 
-1) The gradlew script works.  But Gradle sucks
+1) The gradlew script works.  But Gradle sucks.  You will have to manually do some steps that I haven't bothered figure out with gradle myself:
+- 1) `cd app/src/main/cpp` and run the `./make-luajit-${ndk-arch}.sh` script corresponding to what arch you want to use.
+- 2) copy the created folder `app/src/main/cpp/jit/${lib-arch}` folder to reside at `app/src/main/assets/jit`
+- 3) copy `assets_patch/lua/lua.lua` over `app/src/main/assets/lua/lua.lua`.
 
 2) The Makefile works.  It runs on a few MB instead of a few GB, that's why I use it over Gradle.
 
-3) The `make.rua` works.  If you want a full script to do your building and if you want better error debugging than GNU Make then it is nice.
+3) The `make.rua` works.  It is written in my [langfix-lua](http://github.com/thenumbernine/langfix-lua) script.  If you want a full script to do your building and if you want better error debugging than GNU Make then it is nice.
 
 # TODO:
 
@@ -35,3 +38,7 @@ Same is true for themes.  They have to all be present in xml files at compile ti
 - then compile the one java file to dex, and the one c file to .so, and package the apk
 - - oh wait, i've got a dex compiler. so just use my lua-java library.
 - if only there was a way to mount and edit files directly on the `/data/data/classname/files/` folder of the phone..
+
+# Similar Projects:
+
+- [koreader luajit-android](https://github.com/koreader/android-luajit-launcher) uses Android NativeActivity, so it can do Vulkan stuff just fine, but NativeActivity restricts you to the world of C, so it will be more difficult (but not impossible) to do Java / Android-UI stuff, which is not necessarily a bad thing considering how antequated Android-Java is, and what a bad design decision it was for Google to build everything off Java.

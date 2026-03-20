@@ -14,18 +14,6 @@ local J = require 'java'
 
 local callbacks = {}
 
-local nextMenuID = 0
-local function getNextMenu()
-	nextMenuID = nextMenuID + 1
-	return nextMenuID
-end
-
-local nextActivityID = J.android.app.Activity.RESULT_FIRST_USER
-local function getNextActivity()
-	nextActivityID = nextActivityID + 1
-	return nextActivityID
-end
-
 -- maybe I should by default make all handlers that call through to super ...
 do
 	local Activity = J.android.app.Activity
@@ -46,6 +34,62 @@ do
 	end
 end
 
+
+----------- some support functions
+
+local nextMenuID = 0
+local function getNextMenu()
+	nextMenuID = nextMenuID + 1
+	return nextMenuID
+end
+
+local nextActivityID = J.android.app.Activity.RESULT_FIRST_USER
+local function getNextActivity()
+	nextActivityID = nextActivityID + 1
+	return nextActivityID
+end
+
+local function getFilesForFolderChooserData(activity, data)
+	local files = {}
+	local treeUri = data:getData()
+	activity:getContentResolver():takePersistableUriPermission(treeUri, J.android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+	--[[ androidx method
+	local directory = J.androidx.documentfile.provider.DocumentFile:fromTreeUri(activity, treeUri)
+	for file in directory:listFiles():_iter() do
+		table.insert(files, {
+			type = file:getType(),
+			uri = file:getUri(),
+		})
+	end
+	--]]
+	-- [[
+	local DocumentsContract = J.android.provider.DocumentsContract
+	local childrenUri = DocumentsContract:buildChildDocumentsUriUsingTree(
+		treeUri,
+		DocumentsContract:getTreeDocumentId(treeUri)
+	)
+	-- build string from Lua table...
+	local cols = J:_newArray(J.String, 3);
+	cols[0] = DocumentsContract.Document.COLUMN_DISPLAY_NAME;
+	cols[1] = DocumentsContract.Document.COLUMN_DOCUMENT_ID;
+	cols[2] = DocumentsContract.Document.COLUMN_MIME_TYPE;
+	local cursor = activity:getContentResolver():query(childrenUri, cols, nil, nil, nil)
+	while cursor:moveToNext() do
+		local displayName = cursor:getString(0)
+		local docId = cursor:getString(1)
+		local fileType = cursor:getString(2)
+		local fileUri = DocumentsContract:buildDocumentUriUsingTree(treeUri, docId)
+		table.insert(files, {
+			type = fileType and tostring(fileType),
+			uri = fileUri,
+		})
+	end
+	cursor:close()
+	--]]
+
+	return files
+end
 
 -- [=======[ attempt at just outputting the out.txt file
 do
@@ -370,58 +414,19 @@ do
 		if requestCode:intValue() == menuPickGalleryFolderOpen
 		and resultCode:intValue() == Activity.RESULT_OK
 		then
-			local treeUri = data:getData()
-			activity:getContentResolver():takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-			local files = {}
-
-			--[[ androidx method
-			local directory = J.androidx.documentfile.provider.DocumentFile:fromTreeUri(activity, treeUri)
-			for file in directory:listFiles():_iter() do
-				table.insert(files, {
-					type = file:getType(),
-					uri = file:getUri(),
-				})
-			end
-			--]]
-			-- [[
-			local DocumentsContract = J.android.provider.DocumentsContract
-			local childrenUri = DocumentsContract:buildChildDocumentsUriUsingTree(
-				treeUri,
-				DocumentsContract:getTreeDocumentId(treeUri)
-			)
-			-- build string from Lua table...
-			local cols = J:_newArray(J.String, 3);
-			cols[0] = DocumentsContract.Document.COLUMN_DISPLAY_NAME;
-			cols[1] = DocumentsContract.Document.COLUMN_DOCUMENT_ID;
-			cols[2] = DocumentsContract.Document.COLUMN_MIME_TYPE;
-			local cursor = activity:getContentResolver():query(childrenUri, cols, nil, nil, nil)
-			while cursor:moveToNext() do
-				local displayName = cursor:getString(0)
-				local docId = cursor:getString(1)
-				local fileType = cursor:getString(2)
-				local fileUri = DocumentsContract:buildDocumentUriUsingTree(treeUri, docId)
-				table.insert(files, {
-					type = fileType,
-					uri = fileUri,
-				})
-			end
-			cursor:close()
-			--]]
+			local files = getFilesForFolderChooserData(activity, data)
 
 			gridLayout:removeAllViews()
 			local size = activity:getResources():getDisplayMetrics().widthPixels / 3
 			for _,file in ipairs(files) do
 				local fileType = file.type
-				if fileType ~= nil then
-					fileType = tostring(fileType)
-					if fileType:match'^image/' then
-						-- ... do something here
-						local img = ImageView(activity)
-						img:setLayoutParams(ViewGroup.LayoutParams(size, size))
-						img:setScaleType(ImageView.ScaleType.CENTER_CROP)
-						img:setImageURI(file.uri)
-						gridLayout:addView(img)
-					end
+				if fileType and fileType:match'^image/' then
+					-- ... do something here
+					local img = ImageView(activity)
+					img:setLayoutParams(ViewGroup.LayoutParams(size, size))
+					img:setScaleType(ImageView.ScaleType.CENTER_CROP)
+					img:setImageURI(file.uri)
+					gridLayout:addView(img)
 				end
 			end
 
@@ -439,9 +444,14 @@ do
 	local menuPickMusicFolder = getNextMenu()
 	local menuPickMusicFolderOpen = getNextActivity()
 
+	local musicRootLayout
+
 	local prevOnCreate = callbacks.onCreate
 	callbacks.onCreate = function(activity, ...)
 		prevOnCreate(activity, ...)
+
+		musicRootLayout = LinearLayout(activity)
+
 	end
 
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
@@ -471,35 +481,8 @@ do
 		and resultCode:intValue() == Activity.RESULT_OK
 		then
 			-- do your thing
-			-- [[ get files back from directory picker -- same as gallery
-			local treeUri = data:getData()
-			activity:getContentResolver():takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-			local files = {}
+			local files = getFilesForFolderChooserData(activity, data)
 
-			local DocumentsContract = J.android.provider.DocumentsContract
-			local childrenUri = DocumentsContract:buildChildDocumentsUriUsingTree(
-				treeUri,
-				DocumentsContract:getTreeDocumentId(treeUri)
-			)
-			-- build string from Lua table...
-			local cols = J:_newArray(J.String, 3);
-			cols[0] = DocumentsContract.Document.COLUMN_DISPLAY_NAME;
-			cols[1] = DocumentsContract.Document.COLUMN_DOCUMENT_ID;
-			cols[2] = DocumentsContract.Document.COLUMN_MIME_TYPE;
-			local cursor = activity:getContentResolver():query(childrenUri, cols, nil, nil, nil)
-			while cursor:moveToNext() do
-				local displayName = cursor:getString(0)
-				local docId = cursor:getString(1)
-				local fileType = cursor:getString(2)
-				local fileUri = DocumentsContract:buildDocumentUriUsingTree(treeUri, docId)
-				table.insert(files, {
-					type = fileType and tostring(fileType),
-					uri = fileUri,
-				})
-			end
-			cursor:close()
-			---]]
-	
 			local audios = table()
 			for _,file in ipairs(files) do
 				local fileType = file.type
@@ -518,17 +501,17 @@ do
 					audios[1].uri
 					-- surface holder
 				)
-				
+
 				--[[
 				--TODO
 				local playButton = J.android.os.Button(activity)
 				playButton:setText("Play")
 				playButton:setOnClickListener(function() mediaPlayer:start() end)
-				
+
 				local pauseButton = J.android.os.Button(activity)
 				pauseButton:setText("Play")
 				pauseButton:setOnClickListener(function() mediaPlayer:pause() end)
-				
+
 				-- TODO add a bunch of list items of tracks who have click callbacks to start playing that track
 				--]]
 
