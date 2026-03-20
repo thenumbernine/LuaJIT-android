@@ -597,7 +597,6 @@ do
 	local Activity = J.android.app.Activity
 	local Intent = J.android.content.Intent
 	local GLSurfaceView = J.android.opengl.GLSurfaceView
-	local GLES3 = J.android.opengl.GLES30
 
 	local glMenuPickFolder = getNextMenu()
 
@@ -609,15 +608,16 @@ do
 		
 		glView = GLSurfaceView(activity)
 		glView:setEGLContextClientVersion(3) -- GLES3.0
-		
-		local Renderer = GLSurfaceView.Renderer:_subclass{
+	
+		_G.Renderer = GLSurfaceView.Renderer:_subclass{
 			isPublic = true,
 			methods = {
 				onSurfaceCreated = {
 					isPublic = true,
 					newLuaState = true,	-- TODO new lua state management ... one per method or one per class etc? or automatically detect/generate with pthread_self ?
 					sig = {'void', 'javax.microedition.khronos.opengles.GL10', 'javax.microedition.khronos.egl.EGLConfig'},
-					value = function(this, gl, config)
+					value = function(J, this, gl, config)
+						local GLES30 = J.android.opengl.GLES30
 						GLES30:glClearColor(0,.5,1,1)
 					end,
 				},
@@ -625,7 +625,8 @@ do
 					isPublic = true,
 					newLuaState = true,	-- TODO new lua state management ... one per method or one per class etc?
 					sig = {'void', 'javax.microedition.khronos.opengles.GL10', 'int', 'int'},
-					value = function(this, gl, width, height)
+					value = function(J, this, gl, width, height)
+						local GLES30 = J.android.opengl.GLES30
 						GLES30:glViewport(0,0,width,height)
 					end,
 				},
@@ -633,7 +634,8 @@ do
 					isPublic = true,
 					newLuaState = true,	-- TODO new lua state management ... one per method or one per class etc?
 					sig = {'void', 'javax.microedition.khronos.opengles.GL10'},
-					value = function(this, gl)
+					value = function(J, this, gl)
+						local GLES30 = J.android.opengl.GLES30
 						GLES30:glClear(GLES30.GL_COLOR_BUFFER_BIT)
 					
 						-- do something GL here
@@ -641,7 +643,7 @@ do
 				},
 			},
 		}
-
+		_G.render = Renderer()
 		glView:setRenderer(renderer)
 	end
 
