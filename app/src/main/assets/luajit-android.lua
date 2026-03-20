@@ -440,18 +440,18 @@ end
 do
 	local Activity = J.android.app.Activity
 	local Intent = J.android.content.Intent
+	local LinearLayout = J.android.widget.LinearLayout
 
 	local menuPickMusicFolder = getNextMenu()
 	local menuPickMusicFolderOpen = getNextActivity()
 
-	local musicRootLayout
+	local musicListView
 
 	local prevOnCreate = callbacks.onCreate
 	callbacks.onCreate = function(activity, ...)
 		prevOnCreate(activity, ...)
 
-		musicRootLayout = LinearLayout(activity)
-
+		musicListView = J.android.widget.ListView(activity)
 	end
 
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
@@ -480,10 +480,14 @@ do
 		if requestCode:intValue() == menuPickMusicFolderOpen
 		and resultCode:intValue() == Activity.RESULT_OK
 		then
+			-- clear old files
+			musicListView:setAdapter(nil)
+			
 			-- do your thing
 			local files = getFilesForFolderChooserData(activity, data)
 
 			local audios = table()
+_G.audios = audios	-- don't gc			
 			for _,file in ipairs(files) do
 				local fileType = file.type
 				if fileType and fileType:match'^audio/' then
@@ -495,40 +499,94 @@ do
 				print"COULDN'T FIND ANY AUDIO"
 			else
 				local MediaPlayer = J.android.media.MediaPlayer
-				-- play
-				local mediaPlayer = MediaPlayer:create(
-					activity,
-					audios[1].uri
-					-- surface holder
-				)
 
-				--[[
-				--TODO
-				local playButton = J.android.os.Button(activity)
-				playButton:setText("Play")
-				playButton:setOnClickListener(function() mediaPlayer:start() end)
+				local mediaPlayer
 
-				local pauseButton = J.android.os.Button(activity)
-				pauseButton:setText("Play")
-				pauseButton:setOnClickListener(function() mediaPlayer:pause() end)
+				local isPaused 			-- because mediaplayer doesn't even know if it is paused. jk it does but whoever desigend the API didn't care to let you know.
+				local audioIndex = 0	-- bump and play
+				local currentPlayingIndex 
+				local function playNextTrack()
+					if mediaPlayer then mediaPlayer:release() end
 
-				-- TODO add a bunch of list items of tracks who have click callbacks to start playing that track
-				--]]
-
-				local audioIndex = 1	-- bump and play
-				local function loadNextTrack()
 					-- load the next track from audios
 					audioIndex = audioIndex + 1
-					if audioIndex <= #audios then
-						mediaPlayer:setDataSource(activity, audios[audioIndex].uri)
-						mediaPlayer:start()
-					end
+					if audioIndex > #audios then return end
+
+					currentPlayingIndex = audioIndex
+
+					-- I guess you have to remake it for each song
+					isPaused = false
+					mediaPlayer = MediaPlayer:create(activity, audios[audioIndex].uri)
+					mediaPlayer:setOnCompletionListener(MediaPlayer.OnCompletionListener(playNextTrack))
+					mediaPlayer:start()
 				end
+				
+				local ListViewAdapter = J.android.widget.BaseAdapter:_subclass{
+					isPublic = true,
+					methods = {
+						getCount = {
+							isPublic = true,
+							sig = {'int'},
+							value = function(this) return #audios end,
+						},
+						getItem = {
+							isPublic = true,
+							sig = {'java.lang.Object', 'int'},
+							value = function(this, position) return audios[position+1].uri end,
+						},
+						getItemId = {
+							isPublic = true,
+							sig = {'long', 'int'},
+							value = function(this, position) return position end,
+						},
+						getView = {
+							isPublic = true,
+							sig = {'android.view.View', 'int', 'android.view.View', 'android.view.ViewGroup'},
+							value = function(this, position, convertView, parent)
+								local View = J.android.view.View
+								local ViewGroup = J.android.view.ViewGroup
+								local Button = J.android.widget.Button
+								
+								local layout = LinearLayout(activity)
+								layout:setOrientation(LinearLayout.HORIZONTAL)
+								layout:setPadding(20, 20, 20, 20)
 
-				mediaPlayer:setOnCompletionListener(MediaPlayer.OnCompletionListener(loadNextTrack))
+								local textView = J.android.widget.TextView(activity)
+								textView:setText(tostring(audios[position+1].uri))
+								textView:setLayoutParams(LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1))
+								layout:addView(textView)
 
-				--loadNextTrack()
-				mediaPlayer:start()
+								local playButton = Button(activity)
+								playButton:setText("Play")
+								playButton:setOnClickListener(View.OnClickListener(function()
+									if position+1 == currentPlayingIndex 
+									and mediaPlayer
+									then
+										if isPaused then
+											isPaused = false
+											mediaPlayer:start()
+										else
+											isPaused = true
+											mediaPlayer:pause()
+										end
+									else
+										audioIndex = position	-- index-1, but index is 1-based and position is 0-based
+										playNextTrack()
+									end
+								end))
+								layout:addView(playButton)
+							
+								return layout
+							end,
+						},
+					},
+				}
+
+				musicListView:setAdapter(ListViewAdapter())
+
+				playNextTrack()
+
+				activity:setContentView(musicListView)
 			end
 		end
 	end

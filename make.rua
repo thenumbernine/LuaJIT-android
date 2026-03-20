@@ -312,6 +312,8 @@ targets:add{
 	end,
 }
 
+logfile = 'files/out.txt'	-- log file on remote device (relative to /data/data/package/)
+
 target = ... or 'install'	-- default
 local f = ({
 	install = ||do
@@ -325,7 +327,22 @@ local f = ({
 		exec('adb shell am start -n '..packageName..'/'..packageName..'.Activity')
 	end,
 	log = ||do
-		exec('adb shell run-as '..packageName..' cat files/out.txt')
+		exec('adb shell run-as '..packageName..' cat '..logfile)
+	end,
+	logfollow = ||do -- android tail is so crippled, you can't know when the file resets and it just hangs.
+		-- [[ works ... once.  each restart you have to restart the log cmd.
+		exec('adb shell run-as '..packageName..' tail -f '..logfile)
+		--]]
+		--[[ not supported 
+		exec('adb shell run-as '..packageName..' tail -F '..logfile)
+		--]]
+		--[[ doesn't work.  I guess tail -f doesn't quit when the file gets rewritten.
+		exec('adb shell "run-as '..packageName..' sh -c \'while true; do tail -f '..logfile..'; sleep 1; done\'"')
+		--]]
+		-- hmm, how about a cat-and-follow, like tee, but quits when the file closes, and then put that in a while loop and pipe to ... idk bleh
+	end,
+	logcat = ||do	-- adb logcat is so full of shit that it is nearly worthless
+		exec('adb logcat | grep '..packageName)
 	end,
 	clean = ||do
 		exec('rm -fr',

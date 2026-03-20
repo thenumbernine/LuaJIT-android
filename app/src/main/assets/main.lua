@@ -132,6 +132,11 @@ do
 	ffi.C.setenv('LUA_CPATH', package.cpath, 1)
 end
 --]=]
+print[[
+================================================================
+==                       LuaJIT-Android                       ==
+================================================================
+]]
 
 print('BEGIN android main.lua')
 local activityMethodHandler = require 'luajit-android'

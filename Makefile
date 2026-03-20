@@ -212,9 +212,16 @@ uninstall:
 run:
 	adb shell am start -n $(PACKAGE_NAME)/$(PACKAGE_NAME).Activity
 
+# log file on remote device (relative to /data/data/package/)
+LOGFILE = files/out.txt
+
 .PHONY: log
 log:
-	adb shell run-as $(PACKAGE_NAME) cat files/out.txt
+	adb shell run-as $(PACKAGE_NAME) cat $(LOGFILE)
+
+.PHONY: logfollow
+log:
+	adb shell run-as $(PACKAGE_NAME) tail -F $(LOGFILE)
 
 .PHONY: clean
 clean:
