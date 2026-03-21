@@ -32,10 +32,11 @@ D8_FLAGS = --classpath $(ANDROID_JAR)
 JAVA_FLAGS += -g
 
 
+APK_TITLE = LuaJIT
 
 
 APK_DIR = _apk
-APK_SIGNED_PATH = $(APK_DIR)/base-signed.apk
+APK_SIGNED_PATH = $(APK_DIR)/$(APK_TITLE)-signed-debug.apk
 .PHONY: all
 all: $(APK_SIGNED_PATH)
 
@@ -71,7 +72,7 @@ ANDROID_MANIFEST = nogradle/AndroidManifest.xml
 app/src/main/assets/lua/lua.lua: assets_patch/lua/lua.lua
 	cp $< $@
 
-# use aapt2 again to make base.apk
+# use aapt2 again to make $(APK_TITLE)-resources.apk
 # this errors that the manifest is missing package, because it's not a merged-manifest
 # this populates _gen/ with $(PACKAGE_NAME_PATH)/ Manifest.java and R.java
 # _gen/ is the final location
@@ -79,7 +80,7 @@ app/src/main/assets/lua/lua.lua: assets_patch/lua/lua.lua
 AAPT_GEN_DIR = _gen
 AAPT_GEN_TMP_DIR = _gentmp
 ASSETS_DIR = app/src/main/assets
-APK_OF_RESOURCES = $(APK_DIR)/base.apk
+APK_OF_RESOURCES = $(APK_DIR)/$(APK_TITLE)-resources.apk
 $(APK_OF_RESOURCES): $(ANDROID_MANIFEST) $(COMPILED_RESOURCES) $(shell find $(ASSETS_DIR) -type f)
 	mkdir -p $(AAPT_GEN_DIR)
 	mkdir -p $(AAPT_GEN_TMP_DIR)
@@ -175,14 +176,14 @@ $(LUAJIT_SO): $(shell find app/src/main/cpp/luajit -type f -name "*.c")
 
 # now add the dex to the apk
 
-APK_UNALIGNED_PATH = $(APK_DIR)/base-unaligned.apk
+APK_UNALIGNED_PATH = $(APK_DIR)/$(APK_TITLE)-unaligned-unsigned.apk
 $(APK_UNALIGNED_PATH): $(APK_OF_RESOURCES) $(CLASSES_DEX) $(LIBMAIN_SO) $(LUAJIT_SO)
 	cp $(APK_OF_RESOURCES) $(APK_UNALIGNED_PATH)
 	zip -j $(APK_UNALIGNED_PATH) $(CLASSES_DEX)
 	zip -r -0 -u $(APK_UNALIGNED_PATH) $(LIB_DIR)/
 
 # use zipalign to align the unsigned apk
-APK_ALIGNED_PATH = $(APK_DIR)/base-aligned.apk
+APK_ALIGNED_PATH = $(APK_DIR)/$(APK_TITLE)-aligned-unsigned.apk
 $(APK_ALIGNED_PATH): $(APK_UNALIGNED_PATH)
 	-rm $(APK_ALIGNED_PATH)
 	$(BUILD_TOOLS_DIR)/zipalign -p 4 $(APK_UNALIGNED_PATH) $(APK_ALIGNED_PATH)
@@ -217,9 +218,10 @@ LOGFILE = files/out.txt
 log:
 	adb shell run-as $(PACKAGE_NAME) cat $(LOGFILE)
 
+# have to re-run this every time you run the app, because adb shell tail is deficient
 .PHONY: logfollow
-log:
-	adb shell run-as $(PACKAGE_NAME) tail -F $(LOGFILE)
+logfollow:
+	adb shell run-as $(PACKAGE_NAME) tail -f $(LOGFILE)
 
 .PHONY: clean
 clean:

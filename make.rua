@@ -28,15 +28,6 @@ setmetatable(_G, {
 })
 
 
-packageName = 'io.github.thenumbernine.LuaJIT'
-packageNamePath = path((packageName:gsub('%.', '/')))
-
--- multiple names per arch ...
--- TODO run the build for multiple arch's
-libArch = 'armeabi-v7a'	-- arch folder in lib/
-ndkArch = 'armv7a'		-- arch prefix in NDK
-
-
 home = path(os.home())
 
 androidStudioRoot = home/'android-studio'
@@ -54,7 +45,6 @@ javaFlags = table{
 d8flags = '--classpath '..androidJar:escape()
 
 
-
 -- what programs does this script need?
 -- this is starting to look similar to lua-sh...
 local cp = |...| exec('cp', ...)
@@ -67,6 +57,16 @@ local d8 = |...| exec(buildToolsDir/'d8', ...)
 local zipalign = |...| exec(buildToolsDir/'zipalign', ...)
 local apksigner = |...| exec(buildToolsDir/'apksigner', ...)
 local adb = |...| exec(androidSdkRoot/'platform-tools/adb', ...)
+
+
+apkTitle = 'LuaJIT'
+packageName = 'io.github.thenumbernine.LuaJIT'
+packageNamePath = path((packageName:gsub('%.', '/')))
+
+-- multiple names per arch ...
+-- TODO run the build for multiple arch's
+libArch = 'armeabi-v7a'	-- arch folder in lib/
+ndkArch = 'armv7a'		-- arch prefix in NDK
 
 
 
@@ -112,13 +112,13 @@ targets:add{
 	end,
 }
 
--- use aapt2 again to make base.apk
+-- use aapt2 again to make ${apkTitle}-resources.apk
 
 apkDir = path'_apk'
 aaptGenDir = path'_gen'
 aaptGenTmpDir = path'_gentmp'
 assetsDir = path'app/src/main/assets'
-apkOfResources = apkDir/'base.apk'
+apkOfResources = apkDir/(apkTitle..'-resources.apk')
 targets:add{
 	dsts = {
 		apkOfResources,
@@ -264,7 +264,7 @@ targets:add{
 }
 
 -- add the dex to the apk
-apkUnalignedPath = apkDir/'base-unaligned.apk'
+apkUnalignedPath = apkDir/(apkTitle..'-unaligned-unsigned.apk')
 targets:add{
 	dsts = {apkUnalignedPath},
 	srcs = {apkOfResources, classes_dex, libmain_so, luajit_so},
@@ -276,7 +276,7 @@ targets:add{
 }
 
 -- use zipalign to align the unsigned apk
-apkAlignedPath = apkDir/'base-aligned.apk'
+apkAlignedPath = apkDir/(apkTitle..'-aligned-unsigned.apk')
 targets:add{
 	dsts = {apkAlignedPath},
 	srcs = {apkUnalignedPath},
@@ -291,7 +291,7 @@ targets:add{
 }
 
 -- sign the apk
-apkSignedPath = apkDir/'base-signed.apk'
+apkSignedPath = apkDir/(apkTitle..'-signed-debug.apk')
 keystore = home/'.android/debug.keystore'
 targets:add{
 	dsts = {apkSignedPath},
@@ -317,8 +317,11 @@ targets:add{
 
 logfile = 'files/out.txt'	-- log file on remote device (relative to /data/data/package/)
 
-target = ... or 'install'	-- default
+target = ... or apkSignedPath	-- default
 local f = ({
+	all = ||do
+		targets:run(apkSignedPath)
+	end,
 	install = ||do
 		targets:run(apkSignedPath)
 		adb('install', apkSignedPath)
