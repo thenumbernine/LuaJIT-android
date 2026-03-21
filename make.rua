@@ -160,7 +160,7 @@ targets:add{
 			copyIfDiffer(f, dstf)
 		end
 		-- now delete the temp dir
-		aaptGenTmpDir:rmdir()
+		rm('-fr', aaptGenTmpDir)
 	end,
 }
 
@@ -317,7 +317,7 @@ targets:add{
 
 logfile = 'files/out.txt'	-- log file on remote device (relative to /data/data/package/)
 
-target = ... or apkSignedPath	-- default
+target = ... or 'all'
 local f = ({
 	all = ||do
 		targets:run(apkSignedPath)

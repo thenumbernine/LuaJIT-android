@@ -133,10 +133,9 @@ do
 end
 --]=]
 print[[
-================================================================
-==                       LuaJIT-Android                       ==
-================================================================
-]]
+================================
+==       LuaJIT-Android       ==
+================================]]
 
 print('BEGIN android main.lua')
 local activityMethodHandler = require 'luajit-android'
