@@ -1,3 +1,6 @@
+[![Donate via Stripe](https://img.shields.io/badge/Donate-Stripe-green.svg)](https://buy.stripe.com/00gbJZ0OdcNs9zi288)<br>
+[![BuyMeACoffee](https://img.shields.io/badge/BuyMeA-Coffee-tan.svg)](https://buymeacoffee.com/thenumbernine)<br>
+
 # LuaJIT launcher for Android
 
 This is going to do as minimum as possible in Android before running the `/data/data/io.github.thenumbernine.LuaJIT/files/main.lua`.
