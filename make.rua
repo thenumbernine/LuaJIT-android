@@ -17,6 +17,8 @@ local dirsort = |p|
 	:mapi(|vk| vk[1])
 	:sort(|a,b| a.path < b.path)	-- is < in Path already?
 
+local latest = |p| p/dirsort(p):last()
+
 assert.eq(getmetatable(_G), nil)
 setmetatable(_G, {
 	__newindex = |t,k,v|do
@@ -35,29 +37,38 @@ libArch = 'armeabi-v7a'	-- arch folder in lib/
 ndkArch = 'armv7a'		-- arch prefix in NDK
 
 
-
 home = path(os.home())
 
 androidStudioRoot = home/'android-studio'
-
 androidSdkRoot = home/'Android/Sdk'
-platform = dirsort(androidSdkRoot/'platforms'):last()
-buildToolsVersion = dirsort(androidSdkRoot/'build-tools'):last()
+buildToolsDir = latest(androidSdkRoot/'build-tools')
+androidJar = latest(androidSdkRoot/'platforms')/'android.jar'
+ndkBin = latest(androidSdkRoot/'ndk')/'toolchains/llvm/prebuilt/linux-x86_64/bin'
 
-buildToolsDir = androidSdkRoot/'build-tools'/buildToolsVersion
-
-androidJar = androidSdkRoot/'platforms'/platform/'android.jar'
-
-javaFlags = '-classpath '..androidJar:escape()
-javaFlags ..= ' -Xlint:deprecation'
+javaFlags = table{
+	'-classpath '..androidJar:escape(),
+	'-Xlint:deprecation',
+	'-g',
+}:concat' '
 
 d8flags = '--classpath '..androidJar:escape()
 
 
 
-javaFlags ..= ' -g'
+-- what programs does this script need?
+-- this is starting to look similar to lua-sh...
+local cp = |...| exec('cp', ...)
+local rm = |...| exec('rm', ...)
+local zip = |...| exec('zip', ...)
+local javac = |...| exec(androidStudioRoot/'jbr/bin/javac', ...)
+local ndkcc = |...| exec(ndkBin/(ndkArch..'-linux-androideabi35-clang'), ...)
+local aapt2 = |...| exec(buildToolsDir/'aapt2', ...)
+local d8 = |...| exec(buildToolsDir/'d8', ...)
+local zipalign = |...| exec(buildToolsDir/'zipalign', ...)
+local apksigner = |...| exec(buildToolsDir/'apksigner', ...)
+local adb = |...| exec(androidSdkRoot/'platform-tools/adb', ...)
 
-aapt2 = buildToolsDir/'aapt2'
+
 
 -- Use aapt2 to compile resources into compiled_resources.zip
 resourceDir = path'nogradle/res'
@@ -69,7 +80,8 @@ targets:add{
 	},
 	srcs = resourceFiles,
 	rule = |r|do
-		exec(aapt2, 'compile',
+		aapt2(
+			'compile',
 			'--dir', resourceDir,
 			'-o', compiledResources
 		)
@@ -79,7 +91,7 @@ targets:add{
 -- maybe todo deal with that stupid merged-manifests crap
 androidManifest = path'nogradle/AndroidManifest.xml'
 
-local function copyIfDiffer(src, dst)
+local copyIfDiffer = |src, dst|do
 	local data = assert(src:read())
 	if not dst:exists()
 	or data ~= assert(dst:read())
@@ -96,7 +108,7 @@ targets:add{
 	dsts = {path'app/src/main/assets/lua/lua.lua'},
 	srcs = {path'assets_patch/lua/lua.lua'},
 	rule = |r|do
-		exec('cp', r.srcs[1], r.dsts[1])
+		cp(r.srcs[1], r.dsts[1])
 	end,
 }
 
@@ -126,7 +138,8 @@ targets:add{
 		aaptGenDir:mkdir(true)
 		aaptGenTmpDir:mkdir(true)
 		r.dsts[1]:getdir():mkdir(true)
-		exec(aapt2, 'link',
+		aapt2(
+			'link',
 			'-o', apkOfResources,
 			'-A', assetsDir,
 			'-I', androidJar,
@@ -176,8 +189,7 @@ targets:add{
 	srcs = javaSrcFiles,
 	rule = |r|do
 		classDir:mkdir(true)
-		exec(
-			androidStudioRoot/'jbr/bin/javac',
+		javac(
 			javaFlags,
 			'-d', classDir,
 			r.srcs:unpack()
@@ -194,8 +206,7 @@ targets:add{
 	srcs = javaSrcClassFiles,
 	rule = |r|do
 		r.dsts[1]:getdir():mkdir(true)
-		exec(
-			buildToolsDir/'d8',
+		d8(
 			(classDir/packageNamePath)..'/*.class',	-- unescaped because wildcard hmm
 			d8flags,
 			'--output', classesDexDir
@@ -204,11 +215,6 @@ targets:add{
 }
 
 -- compile C files as well
-
-ndkVer = dirsort(androidSdkRoot/'ndk'):last()
-ndkDir = androidSdkRoot/'ndk'/ndkVer
-ndkBin = ndkDir/'toolchains/llvm/prebuilt/linux-x86_64/bin'
-ndkcc = ndkBin/(ndkArch..'-linux-androideabi35-clang')
 
 cppSrcDir = path'app/src/main/cpp'
 objDir = path'_obj'
@@ -220,7 +226,7 @@ targets:add{	-- TODO this per ndk .c/.cpp file
 	srcs = {cppSrcDir/'luajit.c'},
 	rule = |r|do
 		r.dsts[1]:getdir():mkdir(true)
-		exec(ndkcc, cflags, r.srcs[1], '-c', '-o', r.dsts[1])
+		ndkcc(cflags, r.srcs[1], '-c', '-o', r.dsts[1])
 	end,
 }
 
@@ -233,7 +239,7 @@ targets:add{
 	srcs = table{objDir/'luajit.o'},	-- TODO srcs = all .o ndk built files
 	rule = |r|do
 		r.dsts[1]:getdir():mkdir(true)
-		exec(ndkcc, '-shared', '-L'..libArchDir, '-lluajit', '-o', r.dsts[1], r.srcs:unpack())
+		ndkcc('-shared', '-L'..libArchDir, '-lluajit', '-o', r.dsts[1], r.srcs:unpack())
 	end,
 }
 
@@ -248,10 +254,10 @@ targets:add{
 	rule = |r|do
 		exec('cd app/src/main/cpp',
 			'&& ./make-luajit-'..ndkArch..'.sh')
-		exec('cp',
+		cp(
 			'app/src/main/jniLibs/'..libArch..'/libluajit.so',
 			luajit_so)
-		exec('cp -R',
+		cp('-R',
 			'app/src/main/cpp/jit/'..libArch,
 			'app/src/main/assets/jit')
 	end,
@@ -263,9 +269,9 @@ targets:add{
 	dsts = {apkUnalignedPath},
 	srcs = {apkOfResources, classes_dex, libmain_so, luajit_so},
 	rule = |r|do
-		exec('cp', apkOfResources, apkUnalignedPath)
-		exec('zip -j', apkUnalignedPath, classes_dex)
-		exec('zip -r -0 -u', apkUnalignedPath, libDir:escape()..'/')	-- hmm, I need an escape-with-slash, i.e. make sure / is trailing then wrap with quotes ... hmmm
+		cp(apkOfResources, apkUnalignedPath)
+		zip('-j', apkUnalignedPath, classes_dex)
+		zip('-r -0 -u', apkUnalignedPath, libDir:escape()..'/')	-- hmm, I need an escape-with-slash, i.e. make sure / is trailing then wrap with quotes ... hmmm
 	end,
 }
 
@@ -276,8 +282,7 @@ targets:add{
 	srcs = {apkUnalignedPath},
 	rule = |r|do
 		apkAlignedPath:remove()
-		exec(
-			buildToolsDir/'zipalign',
+		zipalign(
 			'-p 4',
 			apkUnalignedPath,
 			apkAlignedPath
@@ -292,9 +297,8 @@ targets:add{
 	dsts = {apkSignedPath},
 	srcs = {apkAlignedPath},
 	rule = |r|do
-		exec('cp', apkAlignedPath, apkSignedPath)
-		exec(
-			buildToolsDir/'apksigner',
+		cp(apkAlignedPath, apkSignedPath)
+		apksigner(
 			'sign',
 			'--ks', keystore,
 			'--ks-pass', 'pass:android',
@@ -302,8 +306,7 @@ targets:add{
 			'--key-pass', 'pass:android',
 			apkSignedPath
 		)
-		exec(
-			buildToolsDir/'apksigner',
+		apksigner(
 			'verify',
 			'--verbose',
 			'--print-certs',
@@ -318,34 +321,34 @@ target = ... or 'install'	-- default
 local f = ({
 	install = ||do
 		targets:run(apkSignedPath)
-		exec('adb install', apkSignedPath)
+		adb('install', apkSignedPath)
 	end,
 	uninstall = ||do
-		exec('adb uninstall', packageName)
+		adb('uninstall', packageName)
 	end,
 	run = ||do
-		exec('adb shell am start -n '..packageName..'/'..packageName..'.Activity')
+		adb('shell am start -n '..packageName..'/'..packageName..'.Activity')
 	end,
 	log = ||do
-		exec('adb shell run-as '..packageName..' cat '..logfile)
+		adb('shell run-as '..packageName..' cat '..logfile)
 	end,
 	logfollow = ||do -- android tail is so crippled, you can't know when the file resets and it just hangs.
 		-- [[ works ... once.  each restart you have to restart the log cmd.
-		exec('adb shell run-as '..packageName..' tail -f '..logfile)
+		adb('shell run-as '..packageName..' tail -f '..logfile)
 		--]]
 		--[[ not supported 
-		exec('adb shell run-as '..packageName..' tail -F '..logfile)
+		adb('shell run-as '..packageName..' tail -F '..logfile)
 		--]]
 		--[[ doesn't work.  I guess tail -f doesn't quit when the file gets rewritten.
-		exec('adb shell "run-as '..packageName..' sh -c \'while true; do tail -f '..logfile..'; sleep 1; done\'"')
+		adb('shell "run-as '..packageName..' sh -c \'while true; do tail -f '..logfile..'; sleep 1; done\'"')
 		--]]
 		-- hmm, how about a cat-and-follow, like tee, but quits when the file closes, and then put that in a while loop and pipe to ... idk bleh
 	end,
 	logcat = ||do	-- adb logcat is so full of shit that it is nearly worthless
-		exec('adb logcat | grep '..packageName)
+		adb('logcat | grep '..packageName)
 	end,
 	clean = ||do
-		exec('rm -fr',
+		rm('-fr',
 			compiledResources,
 			classDir,
 			classesDexDir,

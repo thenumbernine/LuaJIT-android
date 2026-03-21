@@ -21,6 +21,10 @@ My lua-java library can create classes at runtime.  Problem solved.  Not so fast
 
 Same is true for themes.  They have to all be present in xml files at compile time.  Why.  Why such a stupid design limitation.  It is as if the people designing the Android platform had a first priority of thinking up how to restrict things and a second priority of allowing people to develop on their OS.
 
+# Requirements
+
+This still uses Android SDK.  I can't cut out all the middle-men.
+
 # Build:
 
 1) The gradlew script works.  But Gradle sucks.  You will have to manually do some steps that I haven't bothered figure out with gradle myself:
