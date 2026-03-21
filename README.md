@@ -18,6 +18,10 @@ main.lua will then initialize lua-java and call its method handlers based on the
 
 I would straight up use a single lua-java generated class for the Activity instead of a bunch of wrapping methods, but Android won't let me, because lua-java makes classes at runtime and Android only allows Activities of classes declared at compile time.
 
+# But I don't want to install Android SDK!
+
+You can get by with just adb.  Push and pull the files `/data/data/io.github.thenumbernine.LuaJIT/main.lua` or `/data/data/io.github.thenumbernine.LuaJIT/luajit-android.lua`.  Or uncomment that top block in `main.lua` to chdir to the sdcard and do all your programming from there -- no more need for adb, and no more need for wait times to rebuild and reinstall the APK!
+
 # Limitations (of Android's design)
 
 My lua-java library can create classes at runtime.  Problem solved.  Not so fast.  Android won't let you switch to any Activity at runtime that hasn't already been specified in the AndroidManifest.xml at compile time.
