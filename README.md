@@ -45,6 +45,7 @@ This still uses Android SDK.  I can't cut out all the middle-men.
 - then compile the one java file to dex, and the one c file to .so, and package the apk
 - - oh wait, i've got a dex compiler. so just use my lua-java library.
 - if only there was a way to mount and edit files directly on the `/data/data/classname/files/` folder of the phone..
+- lua-java runtime sideloaded dex JNI subclasses that call into luajit closures works, threads work, but threads with certain android classes will cause segfaults, and Android is not the most helpful platform in the world to debug a segfault.
 
 # Similar Projects:
 
