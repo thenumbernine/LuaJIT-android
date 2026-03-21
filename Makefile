@@ -69,9 +69,7 @@ ANDROID_MANIFEST = nogradle/AndroidManifest.xml
 
 # update assets patched contents:
 app/src/main/assets/lua/lua.lua: assets_patch/lua/lua.lua
-	cmp -s $< $@ \
-		&& echo "up to date: $@" \
-		|| (mkdir -p `dirname $@` && cp $< $@);
+	cp $< $@
 
 # use aapt2 again to make base.apk
 # this errors that the manifest is missing package, because it's not a merged-manifest

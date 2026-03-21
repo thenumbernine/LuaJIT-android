@@ -96,7 +96,7 @@ targets:add{
 	dsts = {path'app/src/main/assets/lua/lua.lua'},
 	srcs = {path'assets_patch/lua/lua.lua'},
 	rule = |r|do
-		copyIfDiffer(r.srcs[1], r.dsts[1])
+		exec('cp', r.srcs[1], r.dsts[1])
 	end,
 }
 
