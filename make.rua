@@ -104,21 +104,41 @@ local copyIfDiffer = |src, dst|do
 	end
 end
 
+
+assetsDir = path'app/src/main/assets'
+local assetFiles = table.wrapfor(assetsDir:rdir()):mapi(|vk| vk[1])
+
 -- update assets patched contents:
-targets:add{
-	dsts = {path'app/src/main/assets/lua/lua.lua'},
-	srcs = {path'assets_patch/lua/lua.lua'},
-	rule = |r|do
-		cp(r.srcs[1], r.dsts[1])
-	end,
-}
+local copyAssets = |srcdir, dstdir|do
+	for src in srcdir:rdir() do
+		local n = #srcdir.path+1
+		assert.eq(src.path:sub(1, n), srcdir.path..'/')
+		local dst = dstdir/src.path:sub(n+1)
+
+		-- add a target for it
+		targets:add{
+			dsts = {dst},
+			srcs = {src},
+			rule = |r|do
+				dst:getdir():mkdir(true)
+				cp(src, dst)
+			end,
+		}
+
+		-- also add it to our assets/ target list so our apkOfResources can reference even new files for timestamps for build updates
+		assetFiles:insertUnique(dst)
+	end
+end
+
+copyAssets(
+	path'assets_patch',			-- srcdir
+	path'app/src/main/assets')	-- dstdir
 
 -- use aapt2 again to make ${apkTitle}-resources.apk
 
 apkDir = path'_apk'
 aaptGenDir = path'_gen'
 aaptGenTmpDir = path'_gentmp'
-assetsDir = path'app/src/main/assets'
 apkOfResources = apkDir/(apkTitle..'-resources.apk')
 targets:add{
 	dsts = {
@@ -133,7 +153,7 @@ targets:add{
 		compiledResources,
 	}:append(
 		-- all files in assetsDir:
-		table.wrapfor(assetsDir:rdir()):mapi(|vk| vk[1])
+		assetFiles
 	),
 	rule = |r|do
 		aaptGenDir:mkdir(true)
@@ -345,7 +365,7 @@ local f = ({
 		-- [[ works ... once.  each restart you have to restart the log cmd.
 		adb('shell run-as '..packageName..' tail -f '..logfile)
 		--]]
-		--[[ not supported 
+		--[[ not supported
 		adb('shell run-as '..packageName..' tail -F '..logfile)
 		--]]
 		--[[ doesn't work.  I guess tail -f doesn't quit when the file gets rewritten.
