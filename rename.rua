@@ -6,11 +6,7 @@ I think I'll do this for GNU Make and make.rua first, which use the nogradle/ fo
 --]]
 
 -- here and make.rua
-local exec = |...|
-	assert(os.exec(table{...}:mapi(|part|do
-		if path:isa(part) then return part:escape() end
-		return tostring(part)
-	end):concat' '))
+local exec = |...| assert(os.exec(...))
 
 
 -- TODO sort out paths, args, files, etc. bleh

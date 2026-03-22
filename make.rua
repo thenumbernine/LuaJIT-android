@@ -6,11 +6,7 @@ local Targets = require 'make.targets'
 local targets = Targets() --{verbose=true}
 
 -- assert or nah?
-local exec = |...|
-	assert(os.exec(table{...}:mapi(|part|do
-		if path:isa(part) then return part:escape() end
-		return tostring(part)
-	end):concat' '))
+local exec = |...| assert(os.exec(...))
 
 local dirsort = |p|
 	table.wrapfor(p:dir())
