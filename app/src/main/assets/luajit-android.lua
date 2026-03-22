@@ -673,57 +673,61 @@ do
 	end
 end
 --]=======]
---[=======[  bluetooth le scanner example
-local callbacks = {
-	onCreate = function(activity, savedInstanceState)
-		activity.super:onCreate(savedInstanceState)
+-- [=======[  bluetooth le scanner example
+do
+	local Context = J.android.content.Context
+	local BluetoothManager = J.android.bluetooth.BluetoothManager
+	local Build = J.android.os.Build
+	local ActivityCompat = J.androidx.core.app.ActivityCompat
+	local Manifest = J.android.Manifest
 
-BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();
-BluetoothLeScanner bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
 
-private ScanCallback leScanCallback = new ScanCallback() {
-    @Override
-    public void onScanResult(int callbackType, ScanResult result) {
-        BluetoothDevice device = result.getDevice();
-        // Access device name, MAC address, and signal strength (RSSI)
-        String name = device.getName();
-        String address = device.getAddress();
-        int rssi = result.getRssi();
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, savedInstanceState, ...)
+		prevOnCreate(activity, savedInstanceState, ...)
 
-        Log.d("BLE_SCAN", "Found: " + name + " [" + address + "] RSSI: " + rssi);
-    }
+		local bluetoothManager = activity:getSystemService(Context.BLUETOOTH_SERVICE):_cast(BluetoothManager)
+		local bluetoothAdapter = bluetoothManager:getAdapter()
+		local bluetoothLeScanner = bluetoothAdapter:getBluetoothLeScanner()
 
-    @Override
-    public void onScanFailed(int errorCode) {
-        Log.e("BLE_SCAN", "Scan failed with error: " + errorCode);
-    }
-};
 
-private boolean mScanning;
-private Handler handler = new Handler();
-private static final long SCAN_PERIOD = 10000; // 10 seconds
+        if Build.VERSION.SDK_INT >= Build.VERSION_CODES.S then
+            local perms = J:_newArray(J.String, 2)
+			perms[0] = Manifest.permission.BLUETOOTH_SCAN
+            perms[1] = Manifest.permission.BLUETOOTH_CONNECT
+			ActivityCompat:requestPermissions(activity, perms, 1)
+        else
+            local perms = J:_newArray(J.String, 1)
+			perms[0] = Manifest.permission.ACCESS_FINE_LOCATION
+			ActivityCompat:requestPermissions(activity, perms, 1)
+        end
+		-- does it block until?
 
-private void scanLeDevice() {
-    if (!mScanning) {
-        // Stop scanning after the defined period
-        handler.postDelayed(() -> {
-            mScanning = false;
-            bluetoothLeScanner.stopScan(leScanCallback);
-        }, SCAN_PERIOD);
-
-        mScanning = true;
-        // Optionally pass ScanFilters and ScanSettings for better efficiency
-        bluetoothLeScanner.startScan(leScanCallback);
-    } else {
-        mScanning = false;
-        bluetoothLeScanner.stopScan(leScanCallback);
-    }
-}
-
-print('onCreate DONE')
-	end,
-}
+		local LeScanCallback = J.android.bluetooth.le.ScanCallback:_subclass{
+			methods = {
+				onScanResult = {
+					isPublic = true,
+					sig = {'void', 'int', 'android.bluetooth.le.ScanResult'},
+					value = function(this, callbackType, result)
+						local device = result:getDevice()
+						local name = device:getName()
+						local address = device:getAddress()
+						local rssi = result:getRssi()
+						print("BLE_SCAN Found: " .. name .. " [" .. address .. "] RSSI: " .. rssi)
+					end,
+				},
+				onScanFailed = {
+					isPublic = true,
+					sig = {'void', 'int'},
+					value = function(this, errorCode)
+						print("BLE_SCAN Scan failed with error: " .. errorCode)
+					end,
+				},
+			},
+		}
+		bluetoothLeScanner:startScan(LeScanCallback())
+	end
+end
 --]=======]
 return function(methodName, activity, ...)
 	return assert.index(callbacks, methodName)(activity, ...)

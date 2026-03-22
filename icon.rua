@@ -1,0 +1,49 @@
+#!/usr/bin/env rua
+-- run from LuaJIT / cwd of script
+
+local icon = assert(..., "expected icon")
+icon = path(icon)
+assert(icon:exists(), "failed to find icon file "..icon)
+
+--[[
+file locations and respective dimensions:
+
+nogradle/res/mipmap-mdpi/ic_launcher.webp WEBP 48x48 48x48+0+0 8-bit sRGB 982B 0.000u 0:00.000
+nogradle/res/mipmap-mdpi/ic_launcher_round.webp WEBP 48x48 48x48+0+0 8-bit sRGB 1772B 0.000u 0:00.000
+nogradle/res/mipmap-hdpi/ic_launcher.webp WEBP 72x72 72x72+0+0 8-bit sRGB 1404B 0.000u 0:00.000
+nogradle/res/mipmap-hdpi/ic_launcher_round.webp WEBP 72x72 72x72+0+0 8-bit sRGB 2898B 0.000u 0:00.000
+nogradle/res/mipmap-xhdpi/ic_launcher.webp WEBP 96x96 96x96+0+0 8-bit sRGB 1900B 0.000u 0:00.000
+nogradle/res/mipmap-xhdpi/ic_launcher_round.webp WEBP 96x96 96x96+0+0 8-bit sRGB 3918B 0.000u 0:00.000
+nogradle/res/mipmap-xxhdpi/ic_launcher.webp WEBP 144x144 144x144+0+0 8-bit sRGB 2884B 0.000u 0:00.000
+nogradle/res/mipmap-xxhdpi/ic_launcher_round.webp WEBP 144x144 144x144+0+0 8-bit sRGB 5914B 0.000u 0:00.000
+nogradle/res/mipmap-xxxhdpi/ic_launcher.webp WEBP 192x192 192x192+0+0 8-bit sRGB 3844B 0.000u 0:00.000
+nogradle/res/mipmap-xxxhdpi/ic_launcher_round.webp WEBP 192x192 192x192+0+0 8-bit sRGB 7778B 0.000u 0:00.000
+--]]
+
+local res = path'nogradle/res'
+
+for _,info in ipairs{
+	{size='48x48', dir=res/'mipmap-mdpi'},
+	{size='72x72', dir=res/'mipmap-hdpi'},
+	{size='96x96', dir=res/'mipmap-xhdpi'},
+	{size='144x144', dir=res/'mipmap-xxhdpi'},
+	{size='192x192', dir=res/'mipmap-xxxhdpi'},
+} do
+	os.exec(
+		'magick',
+		icon,
+		'-resize', info.size,
+		info.dir/'ic_launcher.webp'
+	)
+	os.exec(
+		'magick',
+		icon,
+		'-resize', info.size,
+		info.dir/'ic_launcher_round.webp'
+	)
+end
+
+os.exec('rm', res/'mipmap-anydpi-v26/ic_launcher.xml')
+os.exec('rm', res/'mipmap-anydpi-v26/ic_launcher_round.xml')
+os.exec('rm', res/'drawable/ic_launcher_background.xml')
+os.exec('rm', res/'drawable/ic_launcher_foreground.xml')
