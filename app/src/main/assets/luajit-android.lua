@@ -91,260 +91,7 @@ local function getFilesForFolderChooserData(activity, data)
 	return files
 end
 
--- [=======[
-do
-	local string = require 'ext.string'
-	local table = require 'ext.table'
-
-	local Activity = J.android.app.Activity
-	local Intent = J.android.content.Intent
-	local LinearLayout = J.android.widget.LinearLayout
-
-	local BookListViewAdapter
-	local listView
-	local readerView
-	local textView
-
-	local books = table()
-	local booksForName = {}
-	local currentBook
-	local currentChapter
-
-	local function showBookList(activity)
-		listView:setAdapter(BookListViewAdapter())
-		activity:setContentView(listView)
-	end
-
-	local prevOnCreate = callbacks.onCreate
-	callbacks.onCreate = function(activity, savedInstanceState, ...)
-		prevOnCreate(activity, savedInstances, ...)
-
-		local ViewGroup = J.android.view.ViewGroup
-
-		readerView = J.android.widget.ScrollView(activity)
-		readerView:setLayoutParams(ViewGroup.LayoutParams(
-			ViewGroup.LayoutParams.MATCH_PARENT,
-			ViewGroup.LayoutParams.MATCH_PARENT
-		))
-
-		textView = J.android.widget.TextView(activity)
-		textView:setLayoutParams(ViewGroup.LayoutParams(
-			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-		))
-		textView:setPadding(16, 16, 16, 16)
-		textView:setTextSize(J.android.util.TypedValue.COMPLEX_UNIT_SP, 14)
-		textView:setTextIsSelectable(true)
-		readerView:addView(textView)
-
-		listView = J.android.widget.ListView(activity)
-
-		-- while we're here ...
-		local data = activity:readAssetPath'bible/kjv.txt':_toStr()
-		local filelineno = 1
-		for line in data:gmatch'[^\n]+' do
-			local section, text = line:match'^([^\t]+)\t(.*)$'
-			local bookname, chapterno, verseno = section:match'^(.*) (%d+):(%d+)$'
-			if not bookname then
-				bookname = section
-				chapterno = 1
-			else
-				chapterno = tonumber(chapterno)
-				verseno = tonumber(verseno)
-			end
-			local book = booksForName[bookname]
-			if not book then
-				book = {
-					name = bookname,
-					menuID = getNextMenu(),
-					chapters = table(),
-					chaptersForNo = {},
-				}
-				books:insert(book)
-				booksForName[bookname] = book
-			end
-			local chapter = book.chaptersForNo[chapterno]
-			if not chapter then
-				chapter = {
-					no = chapterno,
-					lines = table(),
-					menuID = getNextMenu(),
-				}
-				book.chaptersForNo[chapterno] = chapter
-				book.chapters:insert(chapter)
-			end
-			chapter.lines:insert{verseno=verseno, text=text}
-			filelineno = filelineno + 1
-		end
-
-		local function show()
-			-- assumes currentBook and currentChapter is set
-
-			local title = currentBook.name
-			if #currentBook.chapters > 1 then
-				title = title .. ' '..tostring(currentChapter.no)
-			end
-			activity:setTitle(title)
-
-			textView:setText(
-				currentChapter.lines:mapi(function(line)
-					if line.verseno then
-						return line.verseno..': '..line.text
-					else
-						return line.text
-					end
-				end):concat'\n'
-			)
-			activity:setContentView(readerView)
-		end
-
-		local BaseAdapter = J.android.widget.BaseAdapter
-
-		ChapterListViewAdapter = BaseAdapter:_subclass{
-			isPublic = true,
-			methods = {
-				getCount = {
-					isPublic = true,
-					sig = {'int'},
-					value = function(this) return #currentBook.chapters end,
-				},
-				getItem = {
-					isPublic = true,
-					sig = {'java.lang.Object', 'int'},
-					value = function(this, position) return J.Integer(position) end,
-				},
-				getItemId = {
-					isPublic = true,
-					sig = {'long', 'int'},
-					value = function(this, position) return position end,
-				},
-				getView = {
-					isPublic = true,
-					sig = {'android.view.View', 'int', 'android.view.View', 'android.view.ViewGroup'},
-					value = function(this, position, convertView, parent)
-						local View = J.android.view.View
-						local ViewGroup = J.android.view.ViewGroup
-						local Button = J.android.widget.Button
-
-						local layout = LinearLayout(activity)
-						layout:setOrientation(LinearLayout.HORIZONTAL)
-
-						local button = Button(activity)
-
-						local AbsListView = J.android.widget.AbsListView
-						button:setLayoutParams(AbsListView.LayoutParams(
-							AbsListView.LayoutParams.MATCH_PARENT,
-							AbsListView.LayoutParams.WRAP_CONTENT
-						))
-
-						local chapterIndex = position+1
-						local chapter = currentBook.chapters[chapterIndex]
-						button:setText(tostring(chapter.no))
-						button:setOnClickListener(View.OnClickListener(function()
-							currentChapter = chapter
-							show()
-						end))
-						layout:addView(button)
-
-						return layout
-					end,
-				},
-			},
-		}
-
-		local function showChapterList()
-			-- pick chapter
-			listView:setAdapter(ChapterListViewAdapter())
-			activity:setContentView(listView)
-		end
-
-		BookListViewAdapter = BaseAdapter:_subclass{
-			isPublic = true,
-			methods = {
-				getCount = {
-					isPublic = true,
-					sig = {'int'},
-					value = function(this) return #books end,
-				},
-				getItem = {
-					isPublic = true,
-					sig = {'java.lang.Object', 'int'},
-					value = function(this, position) return J.Integer(position) end,
-				},
-				getItemId = {
-					isPublic = true,
-					sig = {'long', 'int'},
-					value = function(this, position) return position end,
-				},
-				getView = {
-					isPublic = true,
-					sig = {'android.view.View', 'int', 'android.view.View', 'android.view.ViewGroup'},
-					value = function(this, position, convertView, parent)
-						local View = J.android.view.View
-						local ViewGroup = J.android.view.ViewGroup
-						local Button = J.android.widget.Button
-
-						local layout = LinearLayout(activity)
-						layout:setOrientation(LinearLayout.HORIZONTAL)
-
-						local button = Button(activity)
-
-						local AbsListView = J.android.widget.AbsListView
-						button:setLayoutParams(AbsListView.LayoutParams(
-							AbsListView.LayoutParams.MATCH_PARENT,
-							AbsListView.LayoutParams.WRAP_CONTENT
-						))
-
-						local bookIndex = position+1
-						local book = books[bookIndex]
-						button:setText(book.name)
-						button:setOnClickListener(View.OnClickListener(function()
-							currentBook = book
-							if #book.chapters == 1 then
-								-- show it
-								currentChapter = currentBook.chapters[1]
-								show()
-							else
-								showChapterList()
-							end
-						end))
-						layout:addView(button)
-
-						return layout
-					end,
-				},
-			},
-		}
-
-		showBookList(activity)
-	end
-
-	local menuOpenBooks = getNextMenu()
-	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
-	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
-		prevOnCreateOptionsMenu(activity, menu, ...)
-		menu:add(0, menuOpenBooks, 0, 'Books...')
-		return true
-	end
-
-
-	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
-	callbacks.onOptionsItemSelected = function(activity, item, ...)
-		if item:getItemId() == menuOpenBooks then
-			showBookList(activity)
-		end
-		return prevOnOptionsItemSelected(activity, item, ...)
-	end
-
-	--[[ hmm looks like you can't add an Intent or Action or whatever where 'back' works without multiple Activities
-	-- and you can't use multiple Activities without registering them all up front
-	-- and I can't do that because everything is script-driven at runtime
-	local prevOnBackPressed = callbacks.onBackPressed
-	callbacks.onBackPressed = function(activity)
-	end
-	--]]
-end
---]=======]
---[=======[ attempt at just outputting the out.txt file
+-- [=======[ attempt at just outputting the out.txt file
 do
 	local logScrollView
 	--local viewSwitcher
@@ -595,7 +342,7 @@ print('unregistering receiver', receiver)
 	end
 end
 --]=======]
---[=======[ directory image gallery example
+-- [=======[ directory image gallery example
 do
 	local Intent = J.android.content.Intent
 	local Activity = J.android.app.Activity
@@ -643,7 +390,6 @@ do
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
 	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
 		menu:add(0, menuPickGalleryFolder, 0, 'Pictures...')
-			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
 		return prevOnCreateOptionsMenu(activity, menu, ...)
 	end
 
@@ -688,7 +434,7 @@ do
 	end
 end
 --]=======]
---[=======[ audio player also?
+-- [=======[ audio player also?
 do
 	local Activity = J.android.app.Activity
 	local Intent = J.android.content.Intent
@@ -709,7 +455,6 @@ do
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
 	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
 		menu:add(0, menuPickMusicFolder, 0, 'Music...')
-			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
 		return prevOnCreateOptionsMenu(activity, menu, ...)
 	end
 
@@ -844,7 +589,7 @@ _G.audios = audios	-- don't gc
 	end
 end
 --]=======]
---[=======[ GLES view?
+-- [=======[ GLES view?
 do
 	local Activity = J.android.app.Activity
 	local Intent = J.android.content.Intent
@@ -902,7 +647,6 @@ do
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
 	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
 		menu:add(0, glMenuPickFolder, 0, 'GLES...')
-			:setShowAsAction(J.android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM)
 		return prevOnCreateOptionsMenu(activity, menu, ...)
 	end
 
