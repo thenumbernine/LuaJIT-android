@@ -43,10 +43,13 @@ This still uses Android SDK.  I can't cut out all the middle-men.
 
 3) The `make.rua` works.  It is written in my [langfix-lua](http://github.com/thenumbernine/langfix-lua) script.  If you want a full script to do your building and if you want better error debugging than GNU Make then it is nice.
 
+# Different App Package/Name?
+
+Use the `rename.rua` script alongside either a `config.rua` or your own hardcoded values to replace everything all at once.
+
 # TODO:
 
-- write a script to replace the classnames and app name and rename the .java file.
-- then compile the one java file to dex, and the one c file to .so, and package the apk
+- compile the one java file to dex, and the one c file to .so, and package the apk
 - - oh wait, i've got a dex compiler. so just use my lua-java library.
 - if only there was a way to mount and edit files directly on the `/data/data/classname/files/` folder of the phone..
 - lua-java runtime sideloaded dex JNI subclasses that call into luajit closures works, threads work, but threads with certain android classes will cause segfaults, and Android is not the most helpful platform in the world to debug a segfault.

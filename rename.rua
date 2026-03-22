@@ -1,0 +1,75 @@
+#!/usr/bin/env rua
+--[[
+Set the LuaJIT repo's package name, app name, etc.
+
+I think I'll do this for GNU Make and make.rua first, which use the nogradle/ folder, because I hate gradle.
+--]]
+
+-- here and make.rua
+local exec = |...|
+	assert(os.exec(table{...}:mapi(|part|do
+		if path:isa(part) then return part:escape() end
+		return tostring(part)
+	end):concat' '))
+
+
+-- TODO sort out paths, args, files, etc. bleh
+local cfg = {}
+assert(loadfile('../config.rua', nil, cfg))()
+
+local oldPackage = 'io.github.thenumbernine.LuaJIT'
+local newPackage = cfg!.package
+local oldAppName = 'LuaJIT Launcher'
+local newAppName = cfg!.appname
+-- TODO the archive name too, which is LuaJIT-xyz.apk
+
+local replaceNames = |s|
+	((s
+		-- replace dot-separated names
+		:gsub(oldPackage:patescape(), newPackage)	
+		-- replace underscore-separated names
+		:gsub(oldPackage:gsub('%.', '_'), (newPackage:gsub('%.', '_')))
+		-- maybe someday replace slash-separated but those are only present in the asm-dex files, honestly I will autogen that someday soon anyways
+		:gsub(oldAppName, newAppName)
+	))
+
+local replaceFilesNames = |f| do
+	f = path(f)
+	assert(f:write(
+		replaceNames(assert(f:read()))
+	))
+end
+
+local oldPackagePath = oldPackage:gsub('%.', '/')
+local newPackagePath = newPackage:gsub('%.', '/')
+
+-- java folder:
+
+local javaPath = path'app/src/main/java'
+
+local oldActivityPath = javaPath/oldPackagePath/'Activity.java'
+assert(oldActivityPath:exists())
+local activityData = oldActivityPath:read()
+
+-- out with the old
+oldActivityPath:remove()
+exec('rm -fr', javaPath)
+
+-- in with the new
+local newActivityPath = javaPath/newPackagePath/'Activity.java'
+newActivityPath:getdir():mkdir(true)
+assert(newActivityPath:write(replaceNames(activityData)))
+
+-- c folder:
+replaceFilesNames'app/src/main/cpp/luajit.c'
+
+-- no-gradle manifest:
+replaceFilesNames'nogradle/AndroidManifest.xml'
+replaceFilesNames'make.rua'
+replaceFilesNames'Makefile'
+
+-- [[ gradle crap
+replaceFilesNames'app/src/main/AndroidManifest.xml'
+replaceFilesNames'app/build.gradle'
+replaceFilesNames'settings.gradle'
+--]]
