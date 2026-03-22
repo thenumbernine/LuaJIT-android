@@ -19,14 +19,15 @@ local dirsort = |p|
 
 local latest = |p| p/dirsort(p):last()
 
+--[[ verbose output.  comment out to disable.
 assert.eq(getmetatable(_G), nil)
 setmetatable(_G, {
 	__newindex = |t,k,v|do
---		print(k,'=',v)	-- verbose output.  comment out to disable.
+		print(k,'=',v)
 		rawset(t, k, v)
 	end,
 })
-
+--]]
 
 home = path(os.home())
 
@@ -216,32 +217,8 @@ targets:add{
 
 -- compile C files as well
 
-cppSrcDir = path'app/src/main/cpp'
-objDir = path'_obj'
--- notice the include/ folder is created from the build scripts sitting in app/src/main/cpp/make-luajit-*.sh,
---  which maybe I'll merge into this someday
-cflags = '-m32 -fPIC -Wall -I '..(path'app/src/main/cpp/include'/libArch):escape()
-targets:add{	-- TODO this per ndk .c/.cpp file
-	dsts = {objDir/'luajit.o'},
-	srcs = {cppSrcDir/'luajit.c'},
-	rule = |r|do
-		r.dsts[1]:getdir():mkdir(true)
-		ndkcc(cflags, r.srcs[1], '-c', '-o', r.dsts[1])
-	end,
-}
-
--- compile all ndk .o files into our .so file
 libDir = path'lib'
 libArchDir = libDir/libArch
-libmain_so = libArchDir/'libmain.so'
-targets:add{
-	dsts = {libmain_so},
-	srcs = table{objDir/'luajit.o'},	-- TODO srcs = all .o ndk built files
-	rule = |r|do
-		r.dsts[1]:getdir():mkdir(true)
-		ndkcc('-shared', '-L'..libArchDir, '-lluajit', '-o', r.dsts[1], r.srcs:unpack())
-	end,
-}
 
 -- make sure luajit.so is there
 
@@ -254,12 +231,41 @@ targets:add{
 	rule = |r|do
 		exec('cd app/src/main/cpp',
 			'&& ./make-luajit-'..ndkArch..'.sh')
+		r.dsts[1]:getdir():mkdir(true)
 		cp(
 			'app/src/main/jniLibs/'..libArch..'/libluajit.so',
 			luajit_so)
 		cp('-R',
 			'app/src/main/cpp/jit/'..libArch,
 			'app/src/main/assets/jit')
+	end,
+}
+
+cppSrcDir = path'app/src/main/cpp'
+objDir = path'_obj'
+-- notice the include/ folder is created from the build scripts sitting in app/src/main/cpp/make-luajit-*.sh,
+--  which maybe I'll merge into this someday
+cflags = '-m32 -fPIC -Wall -I '..(path'app/src/main/cpp/include'/libArch):escape()
+targets:add{	-- TODO this per ndk .c/.cpp file
+	dsts = {objDir/'luajit.o'},
+	srcs = {
+		cppSrcDir/'luajit.c',
+		luajit_so,			-- for .c to build, the luajit.so and its include files need to be in the right place
+	},
+	rule = |r|do
+		r.dsts[1]:getdir():mkdir(true)
+		ndkcc(cflags, r.srcs[1], '-c', '-o', r.dsts[1])
+	end,
+}
+
+-- compile all ndk .o files into our .so file
+libmain_so = libArchDir/'libmain.so'
+targets:add{
+	dsts = {libmain_so},
+	srcs = table{objDir/'luajit.o'},	-- TODO srcs = all .o ndk built files
+	rule = |r|do
+		r.dsts[1]:getdir():mkdir(true)
+		ndkcc('-shared', '-L'..libArchDir, '-lluajit', '-o', r.dsts[1], r.srcs:unpack())
 	end,
 }
 
