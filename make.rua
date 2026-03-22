@@ -5,9 +5,6 @@ This one uses lua-make's make.targets, but not the lua-make buildinfo scripts (b
 local Targets = require 'make.targets'
 local targets = Targets() --{verbose=true}
 
--- assert or nah?
-local exec = |...| assert(os.exec(...))
-
 local dirsort = |p|
 	table.wrapfor(p:dir())
 	:mapi(|vk| vk[1])
@@ -44,6 +41,7 @@ d8flags = '--classpath '..androidJar:escape()
 
 -- what programs does this script need?
 -- this is starting to look similar to lua-sh...
+local exec = |...| assert(os.exec(...))	-- assert or nah?
 local cp = |...| exec('cp', ...)
 local rm = |...| exec('rm', ...)
 local zip = |...| exec('zip', ...)
