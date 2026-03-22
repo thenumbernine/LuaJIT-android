@@ -5,8 +5,8 @@ Set the LuaJIT repo's package name, app name, etc.
 I think I'll do this for GNU Make and make.rua first, which use the nogradle/ folder, because I hate gradle.
 --]]
 
--- here and make.rua
 local exec = |...| assert(os.exec(...))
+-- here and make.rua
 
 
 -- TODO sort out paths, args, files, etc. bleh

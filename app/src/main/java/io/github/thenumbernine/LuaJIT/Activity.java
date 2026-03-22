@@ -19,19 +19,19 @@ public class Activity extends android.app.Activity {
 	}
 
 	public long L = 0L;
-	
+
 	// public methods
 
 	@Override
 	public void onRestoreInstanceState(Bundle outState, PersistableBundle persistentState) {
 		luajitCall("onRestoreInstanceState", outState, persistentState);
 	}
-	
+
 	@Override
     public void onWindowFocusChanged(boolean hasFocus) {
 		luajitCall("onWindowFocusChanged", hasFocus);
 	}
-	
+
 	@Override
     public void onTrimMemory(int level) {
 		luajitCall("onTrimMemory", level);
@@ -79,6 +79,12 @@ public class Activity extends android.app.Activity {
 		return (Boolean)luajitCall("onOptionsItemSelected", item);
 	}
 
+	@Override
+	public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
+		luajitCall("onSaveInstanceState", outState, outPersistentState);
+	}
+
+
 	// protected methods
 
 	@Override
@@ -100,7 +106,7 @@ public class Activity extends android.app.Activity {
 	protected void onPause() {
 		luajitCall("onPause");
 	}
-	
+
 	@Override
 	protected void onRestart() {
 		luajitCall("onRestart");
