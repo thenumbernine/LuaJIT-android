@@ -8,10 +8,13 @@ local path = require 'ext.path'
 local ffi = require 'ffi'
 local J = require 'java'
 
+
 --print('_G='..tostring(_G)..', jniEnv='..tostring(J._ptr))
---print('Android API:', J.android.os.Build.VERSION.SDK_INT)
+--print('Android API:', J.android.os.Build.VERSION.SDK_INT)	-- says 30
+--print('Android API:', activity:getApplicationContext():getApplicationInfo().targetSdkVersion)	-- says 36
 
 
+local activity
 local callbacks = {}
 
 -- maybe I should by default make all handlers that call through to super ...
@@ -675,33 +678,13 @@ end
 --]=======]
 -- [=======[  bluetooth le scanner example
 do
-	local Context = J.android.content.Context
-	local BluetoothManager = J.android.bluetooth.BluetoothManager
-	local Build = J.android.os.Build
-	local ActivityCompat = J.androidx.core.app.ActivityCompat
-	local Manifest = J.android.Manifest
+	local PackageManager = J.android.content.pm.PackageManager
 
+	local function proceedWithScan()
 
-	local prevOnCreate = callbacks.onCreate
-	callbacks.onCreate = function(activity, savedInstanceState, ...)
-		prevOnCreate(activity, savedInstanceState, ...)
-
-		local bluetoothManager = activity:getSystemService(Context.BLUETOOTH_SERVICE):_cast(BluetoothManager)
-		local bluetoothAdapter = bluetoothManager:getAdapter()
-		local bluetoothLeScanner = bluetoothAdapter:getBluetoothLeScanner()
-
-
-        if Build.VERSION.SDK_INT >= Build.VERSION_CODES.S then
-            local perms = J:_newArray(J.String, 2)
-			perms[0] = Manifest.permission.BLUETOOTH_SCAN
-            perms[1] = Manifest.permission.BLUETOOTH_CONNECT
-			ActivityCompat:requestPermissions(activity, perms, 1)
-        else
-            local perms = J:_newArray(J.String, 1)
-			perms[0] = Manifest.permission.ACCESS_FINE_LOCATION
-			ActivityCompat:requestPermissions(activity, perms, 1)
-        end
-		-- does it block until?
+		local bluetoothManager = activity:getSystemService(J.android.content.Context.BLUETOOTH_SERVICE)
+			:_cast(J.android.bluetooth.BluetoothManager)
+		local bluetoothLeScanner = bluetoothManager:getAdapter():getBluetoothLeScanner()
 
 		local LeScanCallback = J.android.bluetooth.le.ScanCallback:_subclass{
 			methods = {
@@ -726,9 +709,54 @@ do
 			},
 		}
 		bluetoothLeScanner:startScan(LeScanCallback())
+
+	end
+
+	local menuScanBluetooth = getNextMenu()
+	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
+	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
+		menu:add(0, menuScanBluetooth, 0, 'BT LE Scan...')
+		return prevOnCreateOptionsMenu(activity, menu, ...)
+	end
+
+	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
+	callbacks.onOptionsItemSelected = function(activity, item, ...)
+		if item:getItemId() == menuScanBluetooth then
+			-- FUN RETARDED FACT ABOUT GOOGLE
+			-- THE CONSTANT BLUETOOTH_SCAN IS MISSING WHEN YOU NEED IT,
+			-- BUT IT MAGICALLY APPEARS ONLY AFTER YOU DON'T NEED IT
+			-- GENUIS, GOOGLE.
+			--if activity:checkSelfPermission(J.android.Manifest.permission.BLUETOOTH_SCAN)
+			if activity:checkSelfPermission'android.permission.BLUETOOTH_SCAN'
+			~= PackageManager.PERMISSION_GRANTED
+			then
+				local perms = J:_newArray(J.String, 1)
+				perms[0] = 'android.permission.BLUETOOTH_SCAN'
+				activity:requestPermissions(perms, 101)
+			else
+				proceedWithScan()
+			end
+		end
+	end
+
+	local prevOnRequestPermissionsResult = callbacks.prevOnRequestPermissionsResult
+	callbacks.onRequestPermissionsResult = function(activity, requestCode, permissions, grantResults, ...)
+		-- ... could be deviceId or empty
+		if requestCode == 101 then	-- why 101?
+			if #grantResults.length > 0
+			and grantResults[0] == PackageManager.PERMISSION_GRANTED
+			then
+
+				proceedWithScan()
+
+			else
+				print("BT_ERROR User denied Bluetooth Scan permission.")
+			end
+		end
 	end
 end
 --]=======]
-return function(methodName, activity, ...)
-	return assert.index(callbacks, methodName)(activity, ...)
+return function(methodName, activity_, ...)
+	activity = activity_
+	return assert.index(callbacks, methodName)(activity_, ...)
 end

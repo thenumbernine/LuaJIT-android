@@ -65,6 +65,11 @@ public class Activity extends android.app.Activity {
 	}
 
 	@Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults, int deviceId) {
+		luajitCall("onRequestPermissionsResult", requestCode, permissions, grantResults, deviceId);
+	}
+
+	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		return (Boolean)luajitCall("onCreateOptionsMenu", menu);
 	}
