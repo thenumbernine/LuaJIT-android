@@ -65,11 +65,13 @@ replaceFilesNames'app/src/main/cpp/luajit.c'
 
 -- no-gradle manifest:
 replaceFilesNames'nogradle/AndroidManifest.xml'
+replaceFilesNames'nogradle/res/values/strings.xml'
 replaceFilesNames'make.rua'
 replaceFilesNames'Makefile'
 
 -- [[ gradle crap
 replaceFilesNames'app/src/main/AndroidManifest.xml'
+replaceFilesNames'app/src/main/res/values/strings.xml'
 replaceFilesNames'app/build.gradle'
 replaceFilesNames'settings.gradle'
 --]]
