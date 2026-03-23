@@ -23,23 +23,8 @@ public class Activity extends android.app.Activity {
 	// public methods
 
 	@Override
-	public void onRestoreInstanceState(Bundle outState, PersistableBundle persistentState) {
-		luajitCall("onRestoreInstanceState", outState, persistentState);
-	}
-
-	@Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-		luajitCall("onWindowFocusChanged", hasFocus);
-	}
-
-	@Override
-    public void onTrimMemory(int level) {
-		luajitCall("onTrimMemory", level);
-	}
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-		luajitCall("onConfigurationChanged", newConfig);
+    public boolean dispatchKeyEvent(KeyEvent event) {
+		return (Boolean)luajitCall("dispatchKeyEvent", event);
 	}
 
 /* "new" way that requires androidx which requires a bunch of extra bullshit jars to be downloaded
@@ -54,19 +39,9 @@ public class Activity extends android.app.Activity {
 		luajitCall("onBackPressed");
 	}
 
-	@Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-		return (Boolean)luajitCall("dispatchKeyEvent", event);
-	}
-
-	@Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-		luajitCall("onRequestPermissionsResult", requestCode, permissions, grantResults);
-	}
-
-	@Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults, int deviceId) {
-		luajitCall("onRequestPermissionsResult", requestCode, permissions, grantResults, deviceId);
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+		luajitCall("onConfigurationChanged", newConfig);
 	}
 
 	@Override
@@ -85,8 +60,33 @@ public class Activity extends android.app.Activity {
 	}
 
 	@Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+		luajitCall("onRequestPermissionsResult", requestCode, permissions, grantResults);
+	}
+
+	@Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults, int deviceId) {
+		luajitCall("onRequestPermissionsResult", requestCode, permissions, grantResults, deviceId);
+	}
+
+	@Override
+	public void onRestoreInstanceState(Bundle outState, PersistableBundle persistentState) {
+		luajitCall("onRestoreInstanceState", outState, persistentState);
+	}
+	
+	@Override
 	public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
 		luajitCall("onSaveInstanceState", outState, outPersistentState);
+	}
+
+	@Override
+    public void onTrimMemory(int level) {
+		luajitCall("onTrimMemory", level);
+	}
+
+	@Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+		luajitCall("onWindowFocusChanged", hasFocus);
 	}
 
 
@@ -188,7 +188,8 @@ public class Activity extends android.app.Activity {
 		try {
 			String[] list = getAssets().list(path);
 			if (list.length != 0) {
-				return String.join("\n", list).getBytes();
+				// you could use String.join, but underneath javac/d8 "sugar"s it by swapping it out with a hidden 'synthetic' nested class static method that repeatedly calls StringBuilder ...
+				return android.text.TextUtils.join("\n", list).getBytes();
 			} else {
 				InputStream is = getAssets().open(path);
 

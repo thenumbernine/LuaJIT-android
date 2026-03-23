@@ -32,6 +32,10 @@ Same is true for themes.  They have to all be present in xml files at compile ti
 
 This still uses Android SDK.  I can't cut out all the middle-men.
 
+But if you really want you can get by with just ADB.
+
+And if you really really want, you can use ADB once and only once to redirect to the sdcard, and then do all your coding forever with your favorite Android text editor.  From your Android device.  Make Android apps on Android without using desktop again.
+
 # Build:
 
 1) The gradlew script works.  But Gradle sucks.  You will have to manually do some steps that I haven't bothered figure out with gradle myself:

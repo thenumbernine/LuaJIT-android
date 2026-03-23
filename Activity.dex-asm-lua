@@ -1,4 +1,7 @@
 --[[
+generated with:
+	print(tolua( require 'java.asmdex'(path'_dex/classes.dex':read()) ))
+
 TODO's of this file ...
 1) standardize some kind of java asm format, like jasmin or baksmali, and convert this over to it
 2) auto-generate this based on android.jar's Activity parent class
@@ -6,13 +9,12 @@ TODO's of this file ...
 4) put this file somewhere reasonable.
 --]]
 {
-	classes={
-		{isFinal=true, isPublic=true, isSynthetic=true, sourceFile="D8$$SyntheticClass", superClass="java.lang.Object", thisClass="io.github.thenumbernine.LuaJIT.Activity$$ExternalSyntheticBackport0"},
-		{isPublic=true, sourceFile="Activity.java", superClass="android.app.Activity", thisClass="io.github.thenumbernine.LuaJIT.Activity"}
-	},
+	isPublic=true,
+	sourceFile="Activity.java",
+	superClass="android.app.Activity",
+	thisClass="io.github.thenumbernine.LuaJIT.Activity",
 	fields={
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="L",
 			sig="J",
@@ -20,7 +22,6 @@ TODO's of this file ...
 	},
 	methods={
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isConstructor=true,
 			isPublic=true,
 			name="<init>",
@@ -36,7 +37,6 @@ TODO's of this file ...
 			},
 		},	
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isConstructor=true,
 			isStatic=true,
 			name="<clinit>",
@@ -53,7 +53,6 @@ TODO's of this file ...
 			},
 		},		
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="onRestoreInstanceState",
 			sig={"void", "android.os.Bundle", "android.os.PersistableBundle"}
@@ -73,7 +72,6 @@ TODO's of this file ...
 			},
 		},	
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="onWindowFocusChanged",
 			sig={"void", "boolean"}
@@ -93,7 +91,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="onTrimMemory",
 			sig={"void", "int"}
@@ -113,7 +110,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="onConfigurationChanged",
 			sig={"void", "android.content.res.Configuration"}
@@ -131,7 +127,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="onBackPressed",
 			sig={"void"}
@@ -147,7 +142,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="dispatchKeyEvent",
 			sig={"boolean", "android.view.KeyEvent"}
@@ -169,7 +163,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="onRequestPermissionsResult",
 			sig={"void", "int", "java.lang.String[]", "int[]"}
@@ -193,7 +186,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="onCreateOptionsMenu",
 			sig={"boolean", "android.view.Menu"}
@@ -215,7 +207,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="onCreatePanelMenu",
 			sig={"boolean", "int", "android.view.Menu"}
@@ -241,7 +232,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="onOptionsItemSelected",
 			sig={"boolean", "android.view.MenuItem"}
@@ -263,7 +253,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isProtected=true,
 			name="onActivityResult",
 			sig={"void", "int", "int", "android.content.Intent"}
@@ -289,7 +278,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isProtected=true,
 			name="onCreate",
 			sig={"void", "android.os.Bundle"}
@@ -307,7 +295,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isProtected=true,
 			name="onDestroy",
 			sig={"void"}
@@ -323,7 +310,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isProtected=true,
 			name="onPause",
 			sig={"void"}
@@ -339,7 +325,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isProtected=true,
 			name="onRestart",
 			sig={"void"}
@@ -355,7 +340,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isProtected=true,
 			name="onResume",
 			sig={"void"}
@@ -371,7 +355,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isProtected=true,
 			name="onSaveInstanceState",
 			sig={"void", "android.os.Bundle"}
@@ -389,7 +372,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isProtected=true,
 			name="onStart",
 			sig={"void"}
@@ -405,7 +387,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isProtected=true,
 			name="onStop",
 			sig={"void"}
@@ -421,7 +402,6 @@ TODO's of this file ...
 			},
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			isVarArgs=true,
 			name="luajitCall",
@@ -480,21 +460,18 @@ TODO's of this file ...
 			}
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isNative=true,
 			isPublic=true,
 			name="nativeLuajitCall",
 			sig={"java.lang.Object", "long", "java.lang.String", "java.lang.Object[]"}
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isNative=true,
 			isPublic=true,
 			name="nativeLuajitInit",
 			sig={"long", "java.lang.String"}
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="isAssetPathDir",
 			sig={"boolean", "java.lang.String"},
@@ -523,7 +500,6 @@ TODO's of this file ...
 			}
 		},
 		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity;",
 			isPublic=true,
 			name="readAssetPath",
 			sig={"byte[]", "java.lang.String"},
@@ -538,7 +514,7 @@ TODO's of this file ...
 				{"array-length", "v1", "v0"},
 				{"if-eqz", "v1", 13},
 				{"const-string", "v1", "\n"},
-				{"invoke-static", "Lio/github/thenumbernine/LuaJIT/Activity$$ExternalSyntheticBackport0;", "m", "(Ljava/lang/CharSequence;[Ljava/lang/CharSequence;)Ljava/lang/String;", "v1", "v0"},
+				{"invoke-static", "Landroid.text.TextUtils;", "m", "(Ljava/lang/CharSequence;[Ljava/lang/Object;)Ljava/lang/String;", "v1", "v0"},
 				{"move-result-object", "v1"},
 				{"invoke-virtual", "Ljava/lang/String;", "getBytes", "()[B", "v1"},
 				{"move-result-object", "v1"},
@@ -574,44 +550,6 @@ TODO's of this file ...
 					startAddr=0
 				}
 			}
-		},
-		{
-			class="Lio/github/thenumbernine/LuaJIT/Activity$$ExternalSyntheticBackport0;",
-			isPublic=true,
-			isStatic=true,
-			isSynthetic=true,
-			name="m",
-			sig={"java.lang.String", "java.lang.CharSequence", "java.lang.CharSequence[]"}
-			maxRegs=5,
-			regsIn=2,
-			regsOut=2,
-			code={
-				{"if-eqz", "v3", 36},
-				{"new-instance", "v0", "Ljava/lang/StringBuilder;"},
-				{"invoke-direct", "Ljava/lang/StringBuilder;", "<init>", "()V", "v0"},
-				{"array-length", "v1", "v4"},
-				{"if-lez", "v1", 23},
-				{"const/4", "v1", 0},
-				{"aget-object", "v1", "v4", "v1"},
-				{"invoke-virtual", "Ljava/lang/StringBuilder;", "append", "(Ljava/lang/CharSequence;)Ljava/lang/StringBuilder;", "v0", "v1"},
-				{"const/4", "v1", 1},
-				{"array-length", "v2", "v4"},
-				{"if-ge", "v1", "v2", 13},
-				{"invoke-virtual", "Ljava/lang/StringBuilder;", "append", "(Ljava/lang/CharSequence;)Ljava/lang/StringBuilder;", "v0", "v3"},
-				{"aget-object", "v2", "v4", "v1"},
-				{"invoke-virtual", "Ljava/lang/StringBuilder;", "append", "(Ljava/lang/CharSequence;)Ljava/lang/StringBuilder;", "v0", "v2"},
-				{"add-int/lit8", "v1", "v0", 257},
-				{"goto", -13},
-				{"invoke-virtual", "Ljava/lang/StringBuilder;", "toString", "()Ljava/lang/String;", "v0"},
-				{"move-result-object", "v3"},
-				{"return-object", "v3"},
-				{"new-instance", "v3", "Ljava/lang/NullPointerException;"},
-				{"const-string", "v4", "delimiter"},
-				{"invoke-direct", "Ljava/lang/NullPointerException;", "<init>", "(Ljava/lang/String;)V", "v3", "v4"},
-				{"goto", 2},
-				{"throw", "v3"},
-				{"goto", -1}
-			},
 		},
 	},
 }
