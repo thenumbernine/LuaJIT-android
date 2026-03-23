@@ -276,8 +276,8 @@ print"onCreate DONE"
 			--[[ open ?
 			viewSwitcher:showNext()	-- do you have any control over what view is going to be shown, or did retards make Android?
 			--]]
+			return true
 		end
-
 		return prevOnOptionsItemSelected(activity, item, ...)
 	end
 end
@@ -404,7 +404,6 @@ do
 			activity:startActivityForResult(intent, menuPickGalleryFolderOpen)
 			return true
 		end
-
 		return prevOnOptionsItemSelected(activity, item, ...)
 	end
 
@@ -469,7 +468,6 @@ do
 			activity:startActivityForResult(intent, menuPickMusicFolderOpen)
 			return true
 		end
-
 		return prevOnOptionsItemSelected(activity, item, ...)
 	end
 
@@ -659,7 +657,6 @@ do
 			activity:setContentView(glView)
 			return true
 		end
-
 		return prevOnOptionsItemSelected(activity, item, ...)
 	end
 
@@ -719,6 +716,7 @@ do
 		return prevOnCreateOptionsMenu(activity, menu, ...)
 	end
 
+	local btScanActivityCode = getNextActivity()
 	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
 	callbacks.onOptionsItemSelected = function(activity, item, ...)
 		if item:getItemId() == menuScanBluetooth then
@@ -732,23 +730,24 @@ do
 			then
 				local perms = J:_newArray(J.String, 1)
 				perms[0] = 'android.permission.BLUETOOTH_SCAN'
-				activity:requestPermissions(perms, 101)
+				activity:requestPermissions(perms, btScanActivityCode)
 			else
 				proceedWithScan()
 			end
+			return true
 		end
+
+		return prevOnOptionsItemSelected(activity, item, ...)
 	end
 
 	local prevOnRequestPermissionsResult = callbacks.prevOnRequestPermissionsResult
 	callbacks.onRequestPermissionsResult = function(activity, requestCode, permissions, grantResults, ...)
 		-- ... could be deviceId or empty
-		if requestCode == 101 then	-- why 101?
+		if requestCode == btScanActivityCode then
 			if #grantResults.length > 0
 			and grantResults[0] == PackageManager.PERMISSION_GRANTED
 			then
-
 				proceedWithScan()
-
 			else
 				print("BT_ERROR User denied Bluetooth Scan permission.")
 			end
@@ -756,6 +755,140 @@ do
 	end
 end
 --]=======]
+--[=======[ how about an editor UI for the whole thing, so I don't have to keep editing stuff and adb-pushing it?
+-- but really ... I don't want to make an editor.  mine would suck.
+-- instead, how about I plug vim into all this?  have it invoke termux-vim or something?
+do
+	local editorView
+	local editorTextView
+	local fontSize = 20
+
+
+
+
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, ...)
+		prevOnCreate(activity, ...)
+
+		-- build UI for editor
+
+		local RelativeLayout = J.android.widget.RelativeLayout
+		editorView = RelativeLayout(activity)
+		editorView:setLayoutParams(RelativeLayout.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT,
+			ViewGroup.LayoutParams.MATCH_PARENT
+		))
+
+		local bottomMenu
+		do
+			bottomMenu = LinearLayout(activity)
+			bottomMenu:setId(View:generateViewId())
+			bottomMenu:setOrientation(LinearLayout.HORIZONTAL)
+			local params = RelativeLayout.LayoutParams(
+				RelativeLayout.LayoutParams.MATCH_PARENT,
+				RelativeLayout.LayoutParams.WRAP_CONTENT
+			)
+			params:addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
+			bottomMenu:setLayoutParams(params)
+
+			local function changeChapter(delta)
+				local i = allChapters:find(currentChapter)
+				if i then	-- won't find if we're not viewing a chapter (mabye grey out or hide icons?)
+					local newChapter = allChapters[i+delta]
+					if newChapter then
+						showAndAddHistory{
+							currentChapter = newChapter,
+							currentBook = newChapter.book,
+							showID = showIDs.verses,
+						}
+					end
+				end
+			end
+
+			local uiFontSize = 20
+
+			local buttonPrev = Button(activity)
+			buttonPrev:setText'<'
+			buttonPrev:setTextSize(TypedValue.COMPLEX_UNIT_SP, uiFontSize)
+			buttonPrev:setLayoutParams(LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1))
+			buttonPrev:setOnClickListener(View.OnClickListener(function()
+				changeChapter(-1)
+			end))
+			bottomMenu:addView(buttonPrev)
+
+			local buttonFontMinus = Button(activity)
+			buttonFontMinus:setText'-'
+			buttonFontMinus:setTextSize(TypedValue.COMPLEX_UNIT_SP, uiFontSize)
+			buttonFontMinus:setLayoutParams(LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1))
+			buttonFontMinus:setOnClickListener(View.OnClickListener(function()
+				fontSize = math.max(4, fontSize - 2)
+				refreshFontSize()
+			end))
+			bottomMenu:addView(buttonFontMinus)
+
+			local buttonFontPlus = Button(activity)
+			buttonFontPlus:setText'+'
+			buttonFontPlus:setTextSize(TypedValue.COMPLEX_UNIT_SP, uiFontSize)
+			buttonFontPlus:setLayoutParams(LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1))
+			buttonFontPlus:setOnClickListener(View.OnClickListener(function()
+				fontSize = fontSize + 2	-- upper bound?  exponential curve?
+				refreshFontSize()
+			end))
+			bottomMenu:addView(buttonFontPlus)
+
+			local buttonNext = Button(activity)
+			buttonNext:setText'>'
+			buttonNext:setTextSize(TypedValue.COMPLEX_UNIT_SP, uiFontSize)
+			buttonNext:setLayoutParams(LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1))
+			buttonNext:setOnClickListener(View.OnClickListener(function()
+				changeChapter(1)
+			end))
+			bottomMenu:addView(buttonNext)
+		end
+
+		local readerScrollView = J.android.widget.ScrollView(activity)
+		local params = RelativeLayout.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT,
+			ViewGroup.LayoutParams.MATCH_PARENT
+		)
+		params:addRule(RelativeLayout.ALIGN_PARENT_TOP)
+		params:addRule(RelativeLayout.ABOVE, bottomMenu:getId())
+		readerScrollView:setLayoutParams(params)
+		editorView:addView(readerScrollView)
+
+		editorTextView = J.android.widget.TextView(activity)
+		editorTextView:setLayoutParams(ViewGroup.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+		))
+		editorTextView:setPadding(16, 16, 16, 16)
+		refreshFontSize()
+		editorTextView:setTextIsSelectable(true)
+		readerScrollView:addView(editorTextView)
+
+		-- has to be added last? or order doesn't matter because the ALIGN_PARENT_TOP rule?
+		editorView:addView(bottomMenu)
+	end
+
+	local menuEditFile = getNextMenu()
+	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
+	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
+		menu:add(0, menuEditFile, 0, 'Open...')
+		return prevOnCreateOptionsMenu(activity, menu, ...)
+	end
+
+	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
+	callbacks.onOptionsItemSelected = function(activity, item, ...)
+		if item:getItemId() == menuEditFile then
+			-- do open folder and choose file
+
+			return true
+		end
+		return prevOnOptionsItemSelected(activity, item, ...)
+	end
+end
+--]=======]
+
+
 return function(methodName, activity_, ...)
 	activity = activity_
 	return assert.index(callbacks, methodName)(activity_, ...)
