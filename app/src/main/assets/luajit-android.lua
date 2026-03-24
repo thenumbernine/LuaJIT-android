@@ -585,7 +585,7 @@ _G.audios = audios	-- don't gc
 	end
 end
 --]=======]
--- [=======[ GLES view?
+-- [=======[ GLES view
 do
 	local GLSurfaceView = J.android.opengl.GLSurfaceView
 
@@ -608,6 +608,8 @@ do
 
 						-- hmm, can I just require 'gl' and everything will work fine?
 						-- is there a libGL that ffi.load can just link into?
+						-- more importantly, do i want to add gl/ to the assets/ folder?
+						-- or should that just be for sub-projects?
 
 						local GLES30 = J.android.opengl.GLES30
 					end,
