@@ -20,11 +20,8 @@ NDK_DIR=$(ANDROID_SDK_ROOT)/ndk/$(NDK_VERSION)
 NDK_BIN=$(NDK_DIR)/toolchains/llvm/prebuilt/linux-x86_64/bin
 
 
-JAVA_FLAGS = -classpath $(ANDROID_JAR)
-JAVA_FLAGS += -Xlint:deprecation
-
-# debug:
-JAVA_FLAGS += -g
+JAVAC_FLAGS = -classpath $(ANDROID_JAR)
+JAVAC_FLAGS += -Xlint:deprecation
 
 D8_FLAGS = --classpath $(ANDROID_JAR)
 
@@ -146,7 +143,7 @@ JAVA_SRC_FILES = $(patsubst %, $(JAVA_SRC_DIR)/%, $(JAVA_SRC_REL_FILES)) $(JAVA_
 $(JAVA_SRC_CLASS_FILES): $(JAVA_SRC_FILES)
 	$(MKDIR) -p $(CLASS_DIR)
 	$(JAVAC) \
-		$(JAVA_FLAGS) \
+		$(JAVAC_FLAGS) \
 		-d $(CLASS_DIR) \
 		$(JAVA_SRC_DIR)/$(PACKAGE_NAME_PATH)/Activity.java \
 		$(AAPT_GEN_DIR)/$(PACKAGE_NAME_PATH)/R.java

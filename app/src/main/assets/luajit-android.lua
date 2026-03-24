@@ -9,6 +9,13 @@ local ffi = require 'ffi'
 local J = require 'java'
 
 
+-- used often enough
+local Activity = J.android.app.Activity
+local Intent = J.android.content.Intent
+local LinearLayout = J.android.widget.LinearLayout
+local ViewGroup = J.android.view.ViewGroup
+
+
 --print('_G='..tostring(_G)..', jniEnv='..tostring(J._ptr))
 --print('Android API:', J.android.os.Build.VERSION.SDK_INT)	-- says 30
 --print('Android API:', activity:getApplicationContext():getApplicationInfo().targetSdkVersion)	-- says 36
@@ -19,7 +26,6 @@ local callbacks = {}
 
 -- maybe I should by default make all handlers that call through to super ...
 do
-	local Activity = J.android.app.Activity
 	local callbackNames = {}
 	for name,methodsForName in pairs(Activity._methods) do
 		for _,method in ipairs(methodsForName) do
@@ -104,8 +110,6 @@ do
 	local prevOnCreate = callbacks.onCreate
 	callbacks.onCreate = function(activity, savedInstanceState, ...)
 		prevOnCreate(activity, savedInstanceState, ...)
-
-		local ViewGroup = J.android.view.ViewGroup
 
 		local textView = J.android.widget.TextView(activity)
 		textView:setLayoutParams(ViewGroup.LayoutParams(
@@ -347,10 +351,6 @@ end
 --]=======]
 -- [=======[ directory image gallery example
 do
-	local Intent = J.android.content.Intent
-	local Activity = J.android.app.Activity
-	local LinearLayout = J.android.widget.LinearLayout
-	local ViewGroup = J.android.view.ViewGroup
 	local ImageView = J.android.widget.ImageView
 
 	local menuPickGalleryFolder = getNextMenu()
@@ -438,10 +438,6 @@ end
 --]=======]
 -- [=======[ audio player also?
 do
-	local Activity = J.android.app.Activity
-	local Intent = J.android.content.Intent
-	local LinearLayout = J.android.widget.LinearLayout
-
 	local menuPickMusicFolder = getNextMenu()
 	local menuPickMusicFolderOpen = getNextActivity()
 
@@ -542,7 +538,6 @@ _G.audios = audios	-- don't gc
 							sig = {'android.view.View', 'int', 'android.view.View', 'android.view.ViewGroup'},
 							value = function(this, position, convertView, parent)
 								local View = J.android.view.View
-								local ViewGroup = J.android.view.ViewGroup
 								local Button = J.android.widget.Button
 
 								local layout = LinearLayout(activity)
@@ -592,19 +587,13 @@ end
 --]=======]
 -- [=======[ GLES view?
 do
-	local Activity = J.android.app.Activity
-	local Intent = J.android.content.Intent
 	local GLSurfaceView = J.android.opengl.GLSurfaceView
-
-	local glMenuPickFolder = getNextMenu()
-
-	local glView
 
 	local prevOnCreate = callbacks.onCreate
 	callbacks.onCreate = function(activity, ...)
 		prevOnCreate(activity, ...)
 
-		glView = GLSurfaceView(activity)
+		_G.glView = GLSurfaceView(activity)
 		glView:setEGLContextClientVersion(3) -- GLES3.0
 
 		_G.Renderer = GLSurfaceView.Renderer:_subclass{
@@ -612,39 +601,74 @@ do
 			methods = {
 				onSurfaceCreated = {
 					isPublic = true,
-					newLuaState = true,	-- TODO new lua state management ... one per method or one per class etc? or automatically detect/generate with pthread_self ?
+					newLuaState = true,
 					sig = {'void', 'javax.microedition.khronos.opengles.GL10', 'javax.microedition.khronos.egl.EGLConfig'},
 					value = function(J, this, gl, config)
+						-- this is run in the GL thread's separate lua state
+
+						-- hmm, can I just require 'gl' and everything will work fine?
+						-- is there a libGL that ffi.load can just link into?
+
 						local GLES30 = J.android.opengl.GLES30
-						GLES30:glClearColor(0,.5,1,1)
 					end,
 				},
 				onSurfaceChanged = {
 					isPublic = true,
-					newLuaState = true,	-- TODO new lua state management ... one per method or one per class etc?
+					newLuaState = true,
 					sig = {'void', 'javax.microedition.khronos.opengles.GL10', 'int', 'int'},
 					value = function(J, this, gl, width, height)
+						-- this is run in the GL thread's separate lua state
+
 						local GLES30 = J.android.opengl.GLES30
 						GLES30:glViewport(0,0,width,height)
 					end,
 				},
 				onDrawFrame = {
 					isPublic = true,
-					newLuaState = true,	-- TODO new lua state management ... one per method or one per class etc?
+					newLuaState = true,
 					sig = {'void', 'javax.microedition.khronos.opengles.GL10'},
 					value = function(J, this, gl)
+						-- this is run in the GL thread's separate lua state
 						local GLES30 = J.android.opengl.GLES30
+
+						--[[
+						local t = os.time()	-- 1 second accuracy
+						--]]
+						--[[ segfaulting
+						local t = require 'ext.timer'.getTime()
+						--]]
+						-- [[
+						local t = os.clock()
+						--]]
+
+						local r = .5 + .5 * math.cos(t)
+						local g = .5 + .5 * math.cos(t * 1.2)
+						local b = .5 + .5 * math.cos(t * 1.4)
+						GLES30:glClearColor(r, g, b, 1)
 						GLES30:glClear(GLES30.GL_COLOR_BUFFER_BIT)
 
 						-- do something GL here
+
+						-- memory?
+						if lastTime ~= t then
+							lastTime = t
+
+							local Debug = J.android.os.Debug
+							local mem = Debug.MemoryInfo()
+							Debug:getMemoryInfo(mem)
+print('mem: '..tostring(mem:getTotalPss()))
+						end
+
+						collectgarbage()
 					end,
 				},
 			},
 		}
-		_G.render = Renderer()
+		_G.renderer = Renderer()
 		glView:setRenderer(renderer)
 	end
 
+	local glMenuPickFolder = getNextMenu()
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
 	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
 		menu:add(0, glMenuPickFolder, 0, 'GLES...')
@@ -663,13 +687,17 @@ do
 	local prevOnPause = callbacks.onPause
 	callbacks.onPause = function(activity, ...)
 		prevOnPause(activity, ...)
-		glView:onPause()
+		if glView ~= nil then
+			glView:onPause()
+		end
 	end
 
 	local prevOnResume = callbacks.onResume
 	callbacks.onResume = function(activity, ...)
 		prevOnResume(activity, ...)
-		glView:onResume()
+		if glView ~= nil then
+			glView:onResume()
+		end
 	end
 end
 --]=======]

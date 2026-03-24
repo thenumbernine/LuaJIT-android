@@ -30,10 +30,9 @@ buildToolsDir = latest(androidSdkRoot/'build-tools')
 androidJar = latest(androidSdkRoot/'platforms')/'android.jar'
 ndkBin = latest(androidSdkRoot/'ndk')/'toolchains/llvm/prebuilt/linux-x86_64/bin'
 
-javaFlags = table{
+javacFlags = table{
 	'-classpath '..androidJar:escape(),
 	'-Xlint:deprecation',
-	'-g',
 }:concat' '
 
 d8flags = '--classpath '..androidJar:escape()
@@ -205,7 +204,7 @@ targets:add{
 	rule = |r|do
 		classDir:mkdir(true)
 		javac(
-			javaFlags,
+			javacFlags,
 			'-d', classDir,
 			r.srcs:unpack()
 		)
