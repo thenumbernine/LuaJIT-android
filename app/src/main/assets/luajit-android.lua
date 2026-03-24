@@ -674,8 +674,10 @@ void main() {
 	print(log)
 
 	local FloatBuffer = J.java.nio.FloatBuffer
-	local vertexData = FloatBuffer:allocate(6)
-	local vertexDataArray = vertexData:array()
+	
+	-- weird, FloatBuffer:allocate + :array() didn't error and didn't show anything,
+	-- but newArray'float' + FloatBuffer:wrap() did show stuff and work.
+	local vertexDataArray = J:_newArray('float', 6)
 	for i,v in ipairs{
 		-5/6, -4/6,
 		5/6, -4/6,
@@ -683,18 +685,18 @@ void main() {
 	} do
 		vertexDataArray[i-1] = v
 	end
+	local vertexData = FloatBuffer:wrap(vertexDataArray)
 
 	do
 		local id = J:_newArray('int', 1)
 		gl:glGenBuffers(1, id, 0)
 		vertexBufferID = id[0]
 		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, vertexBufferID)
-		gl:glBufferData(gl.GL_ARRAY_BUFFER, 6 * 4, vertexData, gl.GL_STATIC_DRAW)
+		gl:glBufferData(gl.GL_ARRAY_BUFFER, #vertexDataArray * 4, vertexData, gl.GL_STATIC_DRAW)
 		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 	end
 
-	local colorData = FloatBuffer:allocate(9)
-	local colorDataArray = colorData:array()
+	local colorDataArray = J:_newArray('float', 9)
 	for i,v in ipairs{
 		1, 0, 0,
 		0, 1, 0,
@@ -702,13 +704,14 @@ void main() {
 	} do
 		colorDataArray[i-1] = v
 	end
+	local colorData = FloatBuffer:wrap(colorDataArray)
 
 	do
 		local id = J:_newArray('int', 1)
 		gl:glGenBuffers(1, id, 0)
 		colorBufferID = id[0]
 		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, colorBufferID)
-		gl:glBufferData(gl.GL_ARRAY_BUFFER, 9 * 4, colorData, gl.GL_STATIC_DRAW)
+		gl:glBufferData(gl.GL_ARRAY_BUFFER, #colorDataArray * 4, colorData, gl.GL_STATIC_DRAW)
 		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 	end
 
