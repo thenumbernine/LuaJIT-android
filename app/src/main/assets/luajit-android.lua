@@ -603,45 +603,207 @@ do
 					isPublic = true,
 					newLuaState = true,
 					sig = {'void', 'javax.microedition.khronos.opengles.GL10', 'javax.microedition.khronos.egl.EGLConfig'},
-					value = function(J, this, gl, config)
+					value = function(J, this, gl10, eglConfig)
 						-- this is run in the GL thread's separate lua state
+
+xpcall(function()
 
 						-- hmm, can I just require 'gl' and everything will work fine?
 						-- is there a libGL that ffi.load can just link into?
 						-- more importantly, do i want to add gl/ to the assets/ folder?
 						-- or should that just be for sub-projects?
 
-						local GLES30 = J.android.opengl.GLES30
+						local gl = J.android.opengl.GLES30
+
+						local glVersion = gl:glGetString(gl.GL_VERSION)
+						print('glVersion', glVersion)
+						local glslVersion = gl:glGetString(gl.GL_SHADING_LANGUAGE_VERSION)
+						print('glslVersion', glslVersion)
+
+
+	local versionHeader = '#version 320 es\n'
+	local vertexShaderID = gl:glCreateShader(gl.GL_VERTEX_SHADER)
+	local code = versionHeader..[[
+precision highp float;
+in vec2 vertex;
+in vec3 color;
+out vec4 colorv;
+void main() {
+	colorv = vec4(color, 1.);
+	gl_Position = vec4(vertex, 0., 1.);
+}
+]]
+	gl:glShaderSource(vertexShaderID, code)
+	gl:glCompileShader(vertexShaderID)
+	local status = J:_newArray('int', 1)
+	gl:glGetShaderiv(vertexShaderID, gl.GL_COMPILE_STATUS, status, 0)
+	print('vertex shader compile status', status[0])
+	local log = gl:glGetShaderInfoLog(vertexShaderID)
+	print'log:'
+	print(log)
+
+	local fragmentShaderID = gl:glCreateShader(gl.GL_FRAGMENT_SHADER)
+	local code = versionHeader..[[
+precision highp float;
+in vec4 colorv;
+out vec4 fragColor;
+void main() {
+	fragColor = colorv;
+}
+]]
+	gl:glShaderSource(fragmentShaderID, code)
+	gl:glCompileShader(fragmentShaderID)
+	local status = J:_newArray('int', 1)
+	gl:glGetShaderiv(fragmentShaderID, gl.GL_COMPILE_STATUS, status, 0)
+	print('fragment shader compile status', status[0])
+	local log = gl:glGetShaderInfoLog(fragmentShaderID)
+	print'log:'
+	print(log)
+
+	programID = gl:glCreateProgram()
+	gl:glAttachShader(programID, vertexShaderID)
+	gl:glAttachShader(programID, fragmentShaderID)
+	gl:glLinkProgram(programID)
+	gl:glDetachShader(programID, vertexShaderID)
+	gl:glDetachShader(programID, fragmentShaderID)
+	local status = J:_newArray('int', 1)
+	gl:glGetProgramiv(programID, gl.GL_LINK_STATUS, status, 0)
+	print('program link status', status[0])
+	local log = gl:glGetProgramInfoLog(programID)
+	print'log:'
+	print(log)
+
+	local FloatBuffer = J.java.nio.FloatBuffer
+	local vertexData = FloatBuffer:allocate(6)
+	local vertexDataArray = vertexData:array()
+	for i,v in ipairs{
+		-5/6, -4/6,
+		5/6, -4/6,
+		0, 6/6
+	} do
+		vertexDataArray[i-1] = v
+	end
+
+	do
+		local id = J:_newArray('int', 1)
+		gl:glGenBuffers(1, id, 0)
+		vertexBufferID = id[0]
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, vertexBufferID)
+		gl:glBufferData(gl.GL_ARRAY_BUFFER, 6 * 4, vertexData, gl.GL_STATIC_DRAW)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+	end
+
+	local colorData = FloatBuffer:allocate(9)
+	local colorDataArray = colorData:array()
+	for i,v in ipairs{
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1
+	} do
+		colorDataArray[i-1] = v
+	end
+
+	do
+		local id = J:_newArray('int', 1)
+		gl:glGenBuffers(1, id, 0)
+		colorBufferID = id[0]
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, colorBufferID)
+		gl:glBufferData(gl.GL_ARRAY_BUFFER, 9 * 4, colorData, gl.GL_STATIC_DRAW)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+	end
+
+	vertexAttrLoc = gl:glGetAttribLocation(programID, 'vertex')
+	colorAttrLoc = gl:glGetAttribLocation(programID, 'color')
+
+	-- [[ vao or not
+	do
+		local id = J:_newArray('int', 1)
+		gl:glGenVertexArrays(1, id, 0)
+		vaoID = id[0]
+		gl:glBindVertexArray(vaoID)
+
+		gl:glEnableVertexAttribArray(vertexAttrLoc)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, vertexBufferID)
+		gl:glVertexAttribPointer(vertexAttrLoc, 2, gl.GL_FLOAT, false, 0, 0)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+
+		gl:glEnableVertexAttribArray(colorAttrLoc)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, colorBufferID)
+		gl:glVertexAttribPointer(colorAttrLoc, 3, gl.GL_FLOAT, false, 0, 0)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+
+		gl:glBindVertexArray(0)
+	end
+	--]]
+
+end, function(err)
+	-- TODO this is a good argument to remove the xpcall altogether from lite-thread and make them handle their own errors
+	print('onSurfaceCreated err: '..err..'\n'..debug.traceback())
+end)
 					end,
 				},
 				onSurfaceChanged = {
 					isPublic = true,
 					newLuaState = true,
 					sig = {'void', 'javax.microedition.khronos.opengles.GL10', 'int', 'int'},
-					value = function(J, this, gl, width, height)
+					value = function(J, this, gl10, width_, height_)
 						-- this is run in the GL thread's separate lua state
 
-						local GLES30 = J.android.opengl.GLES30
-						GLES30:glViewport(0,0,width,height)
+						width = width_
+						height = height_
+
+						local gl = J.android.opengl.GLES30
+						gl:glViewport(0,0,width,height)
 					end,
 				},
 				onDrawFrame = {
 					isPublic = true,
 					newLuaState = true,
 					sig = {'void', 'javax.microedition.khronos.opengles.GL10'},
-					value = function(J, this, gl)
+					value = function(J, this, gl10)
 						-- this is run in the GL thread's separate lua state
-						local GLES30 = J.android.opengl.GLES30
-
+xpcall(function()
 						local t = require 'ext.timer'.getTime()
 
+						local gl = J.android.opengl.GLES30
+
+
+						--[[
 						local r = .5 + .5 * math.cos(t)
 						local g = .5 + .5 * math.cos(t * 1.2)
 						local b = .5 + .5 * math.cos(t * 1.4)
-						GLES30:glClearColor(r, g, b, 1)
-						GLES30:glClear(GLES30.GL_COLOR_BUFFER_BIT)
+						gl:glClearColor(r, g, b, 1)
+						--]]
+						gl:glClear(gl.GL_COLOR_BUFFER_BIT)
 
 						-- do something GL here
+
+	gl:glUseProgram(programID)
+
+	if vaoID then
+		gl:glBindVertexArray(vaoID)
+	else
+		gl:glEnableVertexAttribArray(vertexAttrLoc)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, vertexBufferID)
+		gl:glVertexAttribPointer(vertexAttrLoc, 2, gl.GL_FLOAT, false, 0, 0)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+
+		gl:glEnableVertexAttribArray(colorAttrLoc)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, colorBufferID)
+		gl:glVertexAttribPointer(colorAttrLoc, 3, gl.GL_FLOAT, false, 0, 0)
+		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+	end
+
+	gl:glDrawArrays(gl.GL_TRIANGLES, 0, 3)
+
+	if vaoID then
+		gl:glBindVertexArray(0)
+	else
+		gl:glDisableVertexAttribArray(vertexAttrLoc)
+		gl:glDisableVertexAttribArray(colorAttrLoc)
+	end
+
+	gl:glUseProgram(0)
 
 						-- memory?
 						if not lastTime
@@ -652,13 +814,18 @@ do
 							local Debug = J.android.os.Debug
 							local mem = Debug.MemoryInfo()
 							Debug:getMemoryInfo(mem)
-print('mem: '..tostring(mem:getTotalPss())..'kb')
+							print('mem: '..tostring(mem:getTotalPss())..'kb')
 						end
 
 						-- [[ without collectgarbage() the OS would kill the app after a few minutes
 						-- with collectgarbage() it ran forever, and hovered at 60MB memory usage
 						collectgarbage()
 						--]]
+
+end, function(err)
+	-- TODO this is a good argument to remove the xpcall altogether from lite-thread and make them handle their own errors
+	print('onDrawFrame err: '..err..'\n'..debug.traceback())
+end)
 					end,
 				},
 			},
@@ -742,7 +909,6 @@ do
 			},
 		}
 		bluetoothLeScanner:startScan(LeScanCallback())
-
 	end
 
 	local menuScanBluetooth = getNextMenu()
