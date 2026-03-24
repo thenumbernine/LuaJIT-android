@@ -650,13 +650,15 @@ do
 						-- do something GL here
 
 						-- memory?
-						if lastTime ~= t then
+						if not lastTime
+						or math.floor(lastTime) ~= math.floor(t)
+						then
 							lastTime = t
 
 							local Debug = J.android.os.Debug
 							local mem = Debug.MemoryInfo()
 							Debug:getMemoryInfo(mem)
-print('mem: '..tostring(mem:getTotalPss()))
+print('mem: '..tostring(mem:getTotalPss())..'kb')
 						end
 
 						collectgarbage()
