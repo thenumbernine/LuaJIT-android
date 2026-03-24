@@ -41,15 +41,19 @@ ffi.C.setenv('LUA_CPATH', package.cpath, 1)
 --]=]
 
 -- setup the JNI env object:
-
-require 'java.ffi.jni'	-- cdef for JNIEnv
-ffi.cdef[[JNIEnv * jniEnv;]]
-local JNIEnv = require 'java.jnienv'
+-- (same as in assets_patch/lua/lua.lua)
+require 'java.ffi.jni'	-- cdef for JavaVM
+ffi.cdef[[
+JavaVM * javaVM;
+int javaVersion;
+]]
 local main = ffi.load'main'
-local J = JNIEnv{
-	ptr = main.jniEnv,
+assert(main.javaVM ~= nil, "main.javaVM is nil!")
+local J = require 'java.vm'{
+	ptr = main.javaVM,
+	version = main.javaVersion,
 	usingAndroidJNI = true,
-}
+}.jniEnv
 print('J', J)
 package.loaded.java = J
 package.loaded['java.java'] = J

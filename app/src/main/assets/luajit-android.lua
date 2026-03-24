@@ -631,15 +631,7 @@ do
 						-- this is run in the GL thread's separate lua state
 						local GLES30 = J.android.opengl.GLES30
 
-						--[[
-						local t = os.time()	-- 1 second accuracy
-						--]]
-						--[[ segfaulting
 						local t = require 'ext.timer'.getTime()
-						--]]
-						-- [[
-						local t = os.clock()
-						--]]
 
 						local r = .5 + .5 * math.cos(t)
 						local g = .5 + .5 * math.cos(t * 1.2)
@@ -661,11 +653,23 @@ do
 print('mem: '..tostring(mem:getTotalPss())..'kb')
 						end
 
+						-- [[ without collectgarbage() the OS would kill the app after a few minutes
+						-- with collectgarbage() it ran forever, and hovered at 60MB memory usage
 						collectgarbage()
+						--]]
 					end,
 				},
 			},
 		}
+
+		-- now, if the Renderer does die, checking its state can be done with ...
+		--require 'java.luaclass'.savedClosures[Renderer._classpath][i].thread:showErr()
+		-- a mouthful
+		-- but
+		-- don't do that before it's done running
+		-- or you could get a race condition on the sub lua State
+		-- (now how to detect if it's done running or not...)
+
 		_G.renderer = Renderer()
 		glView:setRenderer(renderer)
 	end
@@ -918,7 +922,7 @@ do
 end
 --]=======]
 
-
+collectgarbage()
 return function(methodName, activity_, ...)
 	activity = activity_
 	return assert.index(callbacks, methodName)(activity_, ...)

@@ -73,21 +73,31 @@ return serTable, deserTable
 	-- BEGIN PATCH for luajit-android to insert the android asset loader into any newly created Lua states
 	do
 		local main = ffi.load'main'
+		
+-- TODO this adds the new package.loader
+-- but that will need a new androidActivity jobject ref
+-- which will need to come from the new JNIEnv
+-- from the new thread...
 		ffi.cdef[[int androidLuajitInitState(void *L);]]
 		main.androidLuajitInitState(self.L)
 
 		-- now that the asset loader is setup,
 		-- load JNI and set the android JNI as our `require "java"`
+		-- (same as in app/src/main/assets/main.lua)
 		self[=[
 local ffi = require 'ffi'
-require 'java.ffi.jni'	-- cdef for JNIEnv
-ffi.cdef[[JNIEnv * jniEnv;]]
-local JNIEnv = require 'java.jnienv'
+require 'java.ffi.jni'	-- cdef for JavaVM
+ffi.cdef[[
+JavaVM * javaVM;
+int javaVersion;
+]]
 local main = ffi.load'main'
-local J = JNIEnv{
-	ptr = main.jniEnv,
+assert(main.javaVM ~= nil, "main.javaVM is nil!")
+local J = require 'java.vm'{
+	ptr = main.javaVM,
+	version = main.javaVersion,
 	usingAndroidJNI = true,
-}
+}.jniEnv
 package.loaded.java = J
 package.loaded['java.java'] = J
 ]=]

@@ -67,13 +67,22 @@ static struct Smain {
 	int status;
 } smain;
 
-JNIEnv * jniEnv = NULL;
-jobject androidActivity = NULL;
+JavaVM * javaVM = NULL;
+int javaVersion = 0;
+jobject androidActivity = NULL;	// GlobalRef so that it is thread-safe
 
 int java_isAssetPathDir(lua_State *L) {
 	if (!androidActivity) luaL_error(L, "androidActivity is uninitialized");
 	if (!lua_isstring(L, 1)) luaL_error(L, "expected string");
 	char const * path = lua_tostring(L, 1);
+
+	if (!javaVM) luaL_error(L, "javaVM is null!");
+	JNIEnv * jniEnv = NULL;
+	int status = javaVM[0]->GetEnv(javaVM, (void**)&jniEnv, javaVersion);
+	if (!jniEnv) luaL_error(L, "jniEnv is null!");
+	if (status != JNI_OK) {
+		luaL_error(L, "JavaVM->GetEnv failed with %d\n", status);
+	}
 
 	jclass activityClass = jniEnv[0]->GetObjectClass(jniEnv, androidActivity);
 	jmethodID method = jniEnv[0]->GetMethodID(jniEnv, activityClass, "isAssetPathDir", "(Ljava/lang/String;)Z");
@@ -90,6 +99,14 @@ int java_readAssetPath(lua_State *L) {
 	if (!androidActivity) luaL_error(L, "androidActivity is uninitialized");
 	if (!lua_isstring(L, 1)) luaL_error(L, "expected string");
 	char const * path = lua_tostring(L, 1);
+
+	if (!javaVM) luaL_error(L, "javaVM is null!");
+	JNIEnv * jniEnv = NULL;
+	int status = javaVM[0]->GetEnv(javaVM, (void**)&jniEnv, javaVersion);
+	if (!jniEnv) luaL_error(L, "jniEnv is null!");
+	if (status != JNI_OK) {
+		luaL_error(L, "JavaVM->GetEnv failed with %d\n", status);
+	}
 
 	jclass activityClass = jniEnv[0]->GetObjectClass(jniEnv, androidActivity);
 	jmethodID method = jniEnv[0]->GetMethodID(jniEnv, activityClass, "readAssetPath", "(Ljava/lang/String;)[B");
@@ -320,7 +337,9 @@ int androidLuajitInitState(lua_State *L) {
 	lua_getglobal(L, "package");				// stack: table.insert, package
 	lua_getfield(L, -1, "loaders");				// stack: table.insert, package, package.loaders
 	lua_remove(L, -2);							// stack: table.insert, package.loaders
+	
 	lua_pushcfunction(L, androidAssetLoader);	// stack: table.insert, package.loaders, androidAssetLoader
+	
 	lua_call(L, 2, 0);							// stack:
 
 	return 0;
@@ -367,24 +386,30 @@ static int androidLuajitStartApp(lua_State *L) {
 }
 
 JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitInit(
-	JNIEnv * jniEnv_,
+	JNIEnv * jniEnv,
 	jobject this,
 	jstring wd
 ) {
-	jniEnv = jniEnv_;
-	
+	// on init save the VM
+	javaVM = NULL;
+	jniEnv[0]->GetJavaVM(jniEnv, &javaVM);
+
+	// same version that the JNIEnv accepts?
+	javaVersion = jniEnv[0]->GetVersion(jniEnv);
+
+	// also save the androidActivity as a global ref so it can be accessed cross-threads
 	// only used for java_readAssetPath / java_isAssetPathDir, i wanna replace this with a function arg
-	androidActivity = this;
+	androidActivity = jniEnv[0]->NewGlobalRef(jniEnv, this);
 
 	// this doesn't/shouldn't block, or else it'll freeze the UI
 
 	//chdir to our /data/data/package folder
 	{
-		char const * wdstr = jniEnv_[0]->GetStringUTFChars(jniEnv_, wd, NULL);
+		char const * wdstr = jniEnv[0]->GetStringUTFChars(jniEnv, wd, NULL);
 		if (wdstr) {
 			chdir(wdstr);
 		}
-		jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, wd, wdstr);
+		jniEnv[0]->ReleaseStringUTFChars(jniEnv, wd, wdstr);
 	}
 
 	/*
@@ -427,29 +452,29 @@ JNIEXPORT jlong JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuaji
 	return (jlong)L;
 }
 
+// should I just assume all calls from Activity will be run on the UI thread?
+// and therefore jniEnv will never changed?
 JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLuajitCall(
-	JNIEnv * jniEnv_,
+	JNIEnv * jniEnv,
 	jobject this,
 	jlong _L,
 	jstring msg,
 	jobjectArray args
 ) {
-	int status;
-
-	jniEnv = jniEnv_;
-	androidActivity = this;
-
 	lua_State * L = (lua_State*)_L;
-	if (!L) return NULL;
+	if (!L) {
+		fprintf(stderr, "nativeCall: L is null\n");
+		return NULL;
+	}
 	lua_getfield(L, LUA_REGISTRYINDEX, "main");	// main
 
-	char const * msgstr = jniEnv_[0]->GetStringUTFChars(jniEnv_, msg, NULL);
+	char const * msgstr = jniEnv[0]->GetStringUTFChars(jniEnv, msg, NULL);
 	lua_pushstring(L, msgstr);				// main, msg
 
 	lua_pushlightuserdata(L, this);			// main, msg, this
 	lua_pushlightuserdata(L, args);			// main, msg, this, args
-	status = safecall(L, 3, 1);
-
+	
+	int status = safecall(L, 3, 1);
 	if (status != LUA_OK) {
 		report(L, status);
 		return NULL;
@@ -462,6 +487,6 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 	}
 	lua_pop(L, 1);
 //printf("JNI C: %s returning %p\n", msgstr, objres);
-	jniEnv_[0]->ReleaseStringUTFChars(jniEnv_, msg, msgstr);
+	jniEnv[0]->ReleaseStringUTFChars(jniEnv, msg, msgstr);
 	return objres;
 }
