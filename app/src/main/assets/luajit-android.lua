@@ -596,7 +596,10 @@ do
 		_G.glView = GLSurfaceView(activity)
 		glView:setEGLContextClientVersion(3) -- GLES3.0
 
-		_G.Renderer = GLSurfaceView.Renderer:_subclass{
+-- [====[ fps test.  make some empty lite-thread functions and test their call rate.
+--]====]
+-- [====[ do something GL:
+		local Renderer = GLSurfaceView.Renderer:_subclass{
 			isPublic = true,
 			methods = {
 				onSurfaceCreated = {
@@ -608,30 +611,30 @@ do
 
 xpcall(function()
 
--- even with EGL swap interval disabled ... still runs at 30 fps
-local ffi = require 'ffi'
-ffi.cdef[[
+	-- even with EGL swap interval disabled ... still runs at 30 fps
+	local ffi = require 'ffi'
+	ffi.cdef[[
 typedef unsigned int EGLBoolean;
 typedef int32_t EGLint;
 typedef void *EGLDisplay;
 EGLDisplay eglGetDisplay(void*);
 EGLBoolean eglSwapInterval(EGLDisplay, EGLint);
 ]]
-local egllib = ffi.load'EGL'
-local display = egllib.eglGetDisplay(nil)
-egllib.eglSwapInterval(display, 0)
+	local egllib = ffi.load'EGL'
+	local display = egllib.eglGetDisplay(nil)
+	egllib.eglSwapInterval(display, 0)	-- setting 0 setting 1 doesnt change the cap at 30fps
 
-						-- hmm, can I just require 'gl' and everything will work fine?
-						-- is there a libGL that ffi.load can just link into?
-						-- more importantly, do i want to add gl/ to the assets/ folder?
-						-- or should that just be for sub-projects?
+	-- hmm, can I just require 'gl' and everything will work fine?
+	-- is there a libGL that ffi.load can just link into?
+	-- more importantly, do i want to add gl/ to the assets/ folder?
+	-- or should that just be for sub-projects?
 
-						local gl = J.android.opengl.GLES30
+	local gl = J.android.opengl.GLES30
 
-						local glVersion = gl:glGetString(gl.GL_VERSION)
-						print('glVersion', glVersion)
-						local glslVersion = gl:glGetString(gl.GL_SHADING_LANGUAGE_VERSION)
-						print('glslVersion', glslVersion)
+	local glVersion = gl:glGetString(gl.GL_VERSION)
+	print('glVersion', glVersion)
+	local glslVersion = gl:glGetString(gl.GL_SHADING_LANGUAGE_VERSION)
+	print('glslVersion', glslVersion)
 
 
 	local versionHeader = '#version 320 es\n'
@@ -687,7 +690,7 @@ void main() {
 	print(log)
 
 	local FloatBuffer = J.java.nio.FloatBuffer
-	
+
 	-- weird, FloatBuffer:allocate + :array() didn't error and didn't show anything,
 	-- but newArray'float' + FloatBuffer:wrap() did show stuff and work.
 	local vertexDataArray = J:_newArray('float', 6)
@@ -732,24 +735,22 @@ void main() {
 	colorAttrLoc = gl:glGetAttribLocation(programID, 'color')
 
 	-- [[ vao or not
-	do
-		local id = J:_newArray('int', 1)
-		gl:glGenVertexArrays(1, id, 0)
-		vaoID = id[0]
-		gl:glBindVertexArray(vaoID)
+	local id = J:_newArray('int', 1)
+	gl:glGenVertexArrays(1, id, 0)
+	vaoID = id[0]
+	gl:glBindVertexArray(vaoID)
 
-		gl:glEnableVertexAttribArray(vertexAttrLoc)
-		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, vertexBufferID)
-		gl:glVertexAttribPointer(vertexAttrLoc, 2, gl.GL_FLOAT, false, 0, 0)
-		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+	gl:glEnableVertexAttribArray(vertexAttrLoc)
+	gl:glBindBuffer(gl.GL_ARRAY_BUFFER, vertexBufferID)
+	gl:glVertexAttribPointer(vertexAttrLoc, 2, gl.GL_FLOAT, false, 0, 0)
+	gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 
-		gl:glEnableVertexAttribArray(colorAttrLoc)
-		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, colorBufferID)
-		gl:glVertexAttribPointer(colorAttrLoc, 3, gl.GL_FLOAT, false, 0, 0)
-		gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
+	gl:glEnableVertexAttribArray(colorAttrLoc)
+	gl:glBindBuffer(gl.GL_ARRAY_BUFFER, colorBufferID)
+	gl:glVertexAttribPointer(colorAttrLoc, 3, gl.GL_FLOAT, false, 0, 0)
+	gl:glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 
-		gl:glBindVertexArray(0)
-	end
+	gl:glBindVertexArray(0)
 	--]]
 
 end, function(err)
@@ -765,11 +766,11 @@ end)
 					value = function(J, this, gl10, width_, height_)
 						-- this is run in the GL thread's separate lua state
 
-						width = width_
-						height = height_
+	width = width_
+	height = height_
 
-						local gl = J.android.opengl.GLES30
-						gl:glViewport(0,0,width,height)
+	local gl = J.android.opengl.GLES30
+	gl:glViewport(0,0,width,height)
 					end,
 				},
 				onDrawFrame = {
@@ -779,21 +780,22 @@ end)
 					value = function(J, this, gl10)
 						-- this is run in the GL thread's separate lua state
 xpcall(function()
-						local t = require 'ext.timer'.getTime()
-						local tsec = math.floor(t)
 
-						local gl = J.android.opengl.GLES30
+	local t = require 'ext.timer'.getTime()
+	local tsec = math.floor(t)
+
+	local gl = J.android.opengl.GLES30
 
 
-						--[[
-						local r = .5 + .5 * math.cos(t)
-						local g = .5 + .5 * math.cos(t * 1.2)
-						local b = .5 + .5 * math.cos(t * 1.4)
-						gl:glClearColor(r, g, b, 1)
-						--]]
-						gl:glClear(gl.GL_COLOR_BUFFER_BIT)
+	--[[
+	local r = .5 + .5 * math.cos(t)
+	local g = .5 + .5 * math.cos(t * 1.2)
+	local b = .5 + .5 * math.cos(t * 1.4)
+	gl:glClearColor(r, g, b, 1)
+	--]]
+	gl:glClear(gl.GL_COLOR_BUFFER_BIT)
 
-						-- do something GL here
+	-- do something GL here
 
 	gl:glUseProgram(programID)
 
@@ -822,22 +824,22 @@ xpcall(function()
 
 	gl:glUseProgram(0)
 
-						-- memory?
-						fps = (fps or 0) + 1
-						if not lastTime or lastTime ~= tsec then
-							lastTime = tsec
+	-- memory?
+	fps = (fps or 0) + 1
+	if not lastTime or lastTime ~= tsec then
+		lastTime = tsec
 
-							local Debug = J.android.os.Debug
-							local mem = Debug.MemoryInfo()
-							Debug:getMemoryInfo(mem)
-							print('fps '..fps..' mem: '..tostring(mem:getTotalPss())..'kb')
-							fps = 0
-						end
+		local Debug = J.android.os.Debug
+		local mem = Debug.MemoryInfo()
+		Debug:getMemoryInfo(mem)
+		print('fps '..fps..' mem: '..tostring(mem:getTotalPss())..'kb')
+		fps = 0
+	end
 
-						-- [[ without collectgarbage() the OS would kill the app after a few minutes
-						-- with collectgarbage() it ran forever, and hovered at 60MB memory usage
-						collectgarbage()
-						--]]
+	-- [[ without collectgarbage() the OS would kill the app after a few minutes
+	-- with collectgarbage() it ran forever, and hovered at 60MB memory usage
+	collectgarbage()
+	--]]
 
 end, function(err)
 	-- TODO this is a good argument to remove the xpcall altogether from lite-thread and make them handle their own errors
@@ -847,6 +849,7 @@ end)
 				},
 			},
 		}
+--]====]
 
 		-- now, if the Renderer does die, checking its state can be done with ...
 		--require 'java.luaclass'.savedClosures[Renderer._classpath][i].thread:showErr()
@@ -858,6 +861,15 @@ end)
 
 		_G.renderer = Renderer()
 		glView:setRenderer(renderer)
+
+		--[[ "Note that GLSurfaceView naturally synchronizes with the display's VSync. To push frames faster than the screen can show, you may need to bypass GLSurfaceView and use a raw SurfaceHolder or SurfaceTexture."
+		-- hmmm
+		-- FrameRateCompatibility is missing anyways
+		activity
+			:getWindow()
+			:getAttributes()
+			:setFrameRate(120, J.android.view.Window.FrameRateCompatibility.FRAME_RATE_COMPATIBILITY_DEFAULT)
+		--]]
 	end
 
 	local glMenuPickFolder = getNextMenu()
