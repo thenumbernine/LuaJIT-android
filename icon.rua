@@ -1,8 +1,7 @@
 #!/usr/bin/env rua
 -- run from LuaJIT / cwd of script
 
-local icon = assert(..., "expected icon")
-icon = path(icon)
+local icon = path(... or 'icon.png')
 assert(icon:exists(), "failed to find icon file "..icon)
 
 --[[
