@@ -608,6 +608,19 @@ do
 
 xpcall(function()
 
+-- even with EGL swap interval disabled ... still runs at 30 fps
+local ffi = require 'ffi'
+ffi.cdef[[
+typedef unsigned int EGLBoolean;
+typedef int32_t EGLint;
+typedef void *EGLDisplay;
+EGLDisplay eglGetDisplay(void*);
+EGLBoolean eglSwapInterval(EGLDisplay, EGLint);
+]]
+local egllib = ffi.load'EGL'
+local display = egllib.eglGetDisplay(nil)
+egllib.eglSwapInterval(display, 0)
+
 						-- hmm, can I just require 'gl' and everything will work fine?
 						-- is there a libGL that ffi.load can just link into?
 						-- more importantly, do i want to add gl/ to the assets/ folder?
@@ -767,6 +780,7 @@ end)
 						-- this is run in the GL thread's separate lua state
 xpcall(function()
 						local t = require 'ext.timer'.getTime()
+						local tsec = math.floor(t)
 
 						local gl = J.android.opengl.GLES30
 
@@ -809,15 +823,15 @@ xpcall(function()
 	gl:glUseProgram(0)
 
 						-- memory?
-						if not lastTime
-						or math.floor(lastTime) ~= math.floor(t)
-						then
-							lastTime = t
+						fps = (fps or 0) + 1
+						if not lastTime or lastTime ~= tsec then
+							lastTime = tsec
 
 							local Debug = J.android.os.Debug
 							local mem = Debug.MemoryInfo()
 							Debug:getMemoryInfo(mem)
-							print('mem: '..tostring(mem:getTotalPss())..'kb')
+							print('fps '..fps..' mem: '..tostring(mem:getTotalPss())..'kb')
+							fps = 0
 						end
 
 						-- [[ without collectgarbage() the OS would kill the app after a few minutes

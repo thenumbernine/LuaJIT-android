@@ -68,19 +68,23 @@
 	 in the XML below.
 
 	 An example Java class can be found in README-android.md
+
+Wait so turning off android;debuggable just disables access to /data/data/package?
+Here I was hoping it would stop the multiple wasted cycles on debug logging every single frame when running realtime hardware acceleration ... but nope, android is still bogging the system down with nonsense.
+wtf stupid flag is this?
 	-->
 	<application
 		android:allowBackup="true"
-        android:debuggable="false"
+        android:debuggable="true"
         android:extractNativeLibs="false"
-		android:hardwareAccelerated="true" 
+		android:hardwareAccelerated="true"
 		android:icon="@mipmap/ic_launcher"
 		android:roundIcon="@mipmap/ic_launcher_round"
 		android:label="@string/app_name">
 		<!--android:theme="@style/AppTheme"-->
         <!--android:appComponentFactory="androidx.core.app.CoreComponentFactory"-->
 
-		<!-- 
+		<!--
 		Example of setting SDL hints from AndroidManifest.xml:
 		<meta-data android:name="SDL_ENV.SDL_ANDROID_TRAP_BACK_BUTTON" android:value="0"/>
 		 -->
@@ -127,7 +131,7 @@
                 android:name="androidx.profileinstaller.ProfileInstallerInitializer"
                 android:value="androidx.startup" />
         </provider>
-        
+
 		<receiver
             android:name="androidx.profileinstaller.ProfileInstallReceiver"
             android:directBootAware="false"
@@ -147,7 +151,7 @@
                 <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
             </intent-filter>
         </receiver>
--->	
+-->
 	</application>
 
 </manifest>
