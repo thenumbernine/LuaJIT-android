@@ -90,6 +90,7 @@ local copyIfDiffer = |src, dst|do
 	if not dst:exists()
 	or data ~= assert(dst:read())
 	then
+		print('updating: '..src..' -> '..dst)
 		dst:getdir():mkdir(true)
 		assert(dst:write(data))
 	else
