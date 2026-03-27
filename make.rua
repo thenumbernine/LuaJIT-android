@@ -223,10 +223,11 @@ targets:add{
 	srcs = javaSrcClassFiles,
 	rule = |r|do
 		r.dsts[1]:getdir():mkdir(true)
+		local classFiles = table.wrapfor(classDir:rdir()):mapi(|vk| vk[1])
 		d8(
-			(classDir/packageNamePath)..'/*.class',	-- unescaped because wildcard hmm
 			d8flags,
-			'--output', classesDexDir
+			'--output', classesDexDir,
+			classFiles:unpack()
 		)
 	end,
 }
