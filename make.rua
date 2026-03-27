@@ -85,6 +85,37 @@ targets:add{
 -- maybe todo deal with that stupid merged-manifests crap
 androidManifest = path'nogradle/AndroidManifest.xml'
 
+assetsDir = path'app/src/main/assets'
+
+-- add rules for any current assetsDir/
+assetFiles = table.wrapfor(assetsDir:rdir()):mapi(|vk| vk[1])
+
+-- add rules for copying files from assets_patch to app/src/main/assets/
+do
+	local fromdir = path'assets_patch'
+	local todir = assetsDir
+	if fromdir:exists() then
+		for srcf in fromdir:rdir() do
+			local dstf = path((
+				srcf.path:gsub(
+					'^'..fromdir.path:patescape()..'/',
+					todir.path:patescape()..'/')
+			))
+			-- also add assetFiles from assets_patch ...
+			targets:add{
+				dsts = {dstf},
+				srcs = {srcf},
+				rule = |r|do
+					r.dsts[1]:getdir():mkdir(true)
+					cp(r.srcs[1], r.dsts[1])
+				end,
+			}
+			assetFiles:insertUnique(dstf)
+		end
+	end
+end
+
+-- only needed for temp-generated files mid-build, i.e. the gentmp folder of resources
 local copyIfDiffer = |src, dst|do
 	local data = assert(src:read())
 	if not dst:exists()
@@ -98,25 +129,6 @@ local copyIfDiffer = |src, dst|do
 	end
 end
 
-local updateFolder = |fromdir, todir|do
-	if fromdir:exists() then
-		for srcf in fromdir:rdir() do
-			local dstf = path((srcf.path:gsub(
-				'^'..fromdir.path:patescape()..'/',
-				todir.path:patescape()..'/')))
-			copyIfDiffer(srcf, dstf)
-		end
-	end
-end
-
-assetsDir = path'app/src/main/assets'
-
-updateFolder(
-	path'assets_patch',
-	assetsDir
-)
-
-local assetFiles = table.wrapfor(assetsDir:rdir()):mapi(|vk| vk[1])
 
 -- use aapt2 again to make ${apkTitle}-resources.apk
 
@@ -136,7 +148,7 @@ targets:add{
 		androidManifest,
 		compiledResources,
 	}:append(
-		-- all files in assetsDir:
+		-- all files in assetsDir (and any that might eventualy go there from assets_patch)
 		assetFiles
 	),
 	rule = |r|do
