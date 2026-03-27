@@ -138,6 +138,7 @@ CLASS_DIR = _class
 # dependencies should be all .class files, but that list isn't made until after javac is run, so I'll just go with the files i know it makes
 JAVA_SRC_CLASS_FILES = $(patsubst %.java, $(CLASS_DIR)/%.class, $(JAVA_SRC_REL_FILES))
 
+# TODO TODO I just broke make
 JAVA_SRC_FILES = $(patsubst %, $(JAVA_SRC_DIR)/%, $(JAVA_SRC_REL_FILES)) $(JAVA_GEN_FILES)
 
 # JAVA_SRC_CLASS_FILES just has one entry anyways, so...
@@ -146,8 +147,7 @@ $(JAVA_SRC_CLASS_FILES): $(JAVA_SRC_FILES)
 	$(JAVAC) \
 		$(JAVAC_FLAGS) \
 		-d $(CLASS_DIR) \
-		$(JAVA_SRC_DIR)/$(PACKAGE_NAME_PATH)/Activity.java \
-		$(AAPT_GEN_DIR)/$(PACKAGE_NAME_PATH)/R.java
+		$^
 
 # compile .class to classes.dex
 
@@ -156,9 +156,9 @@ CLASSES_DEX = $(CLASSES_DEX_DIR)/classes.dex
 $(CLASSES_DEX): $(JAVA_SRC_CLASS_FILES)
 	$(MKDIR) -p $(CLASSES_DEX_DIR)
 	$(D8) \
-		$(shell find $(CLASS_DIR) -type f -name "*.class") \
 		$(D8_FLAGS) \
-		--output $(CLASSES_DEX_DIR)
+		--output $(CLASSES_DEX_DIR) \
+		$(shell find $(CLASS_DIR) -type f -name "*.class")
 
 # compile C files as well
 

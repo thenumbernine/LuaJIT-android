@@ -43,7 +43,7 @@ And if you really really want, you can use ADB once and only once to redirect to
 - 2) copy the created folder `app/src/main/cpp/jit/${lib-arch}` folder to reside at `app/src/main/assets/jit`
 - 3) copy `assets_patch/lua/lua.lua` over `app/src/main/assets/lua/lua.lua`.
 
-2) The Makefile works.  It runs on a few MB instead of a few GB, that's why I use it over Gradle.
+2) The Makefile used to work, then I made it more flexible, now it needs to add some `$` escaping to it... ~~The Makefile works.  It runs on a few MB instead of a few GB, that's why I use it over Gradle.~~
 
 3) The `make.rua` works.  It is written in my [langfix-lua](http://github.com/thenumbernine/langfix-lua) script.  If you want a full script to do your building and if you want better error debugging than GNU Make then it is nice.
 
