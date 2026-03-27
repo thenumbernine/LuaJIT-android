@@ -98,6 +98,16 @@ local copyIfDiffer = |src, dst|do
 	end
 end
 
+local updateFolder = |fromdir, todir|do
+	if fromdir:exists() then
+		for srcf in fromdir:rdir() do
+			local dstf = path((srcf.path:gsub(
+				'^'..fromdir.path:patescape()..'/',
+				todir.path:patescape()..'/')))
+			copyIfDiffer(srcf, dstf)
+		end
+	end
+end
 
 assetsDir = path'app/src/main/assets'
 local assetFiles = table.wrapfor(assetsDir:rdir()):mapi(|vk| vk[1])
@@ -124,9 +134,11 @@ local copyAssets = |srcdir, dstdir|do
 	end
 end
 
-copyAssets(
-	path'assets_patch',			-- srcdir
-	path'app/src/main/assets')	-- dstdir
+updateFolder(
+	path'assets_patch',
+	path'LuaJIT/app/src/main/assets'
+)
+
 
 -- use aapt2 again to make ${apkTitle}-resources.apk
 
