@@ -110,35 +110,13 @@ local updateFolder = |fromdir, todir|do
 end
 
 assetsDir = path'app/src/main/assets'
-local assetFiles = table.wrapfor(assetsDir:rdir()):mapi(|vk| vk[1])
-
--- update assets patched contents:
-local copyAssets = |srcdir, dstdir|do
-	for src in srcdir:rdir() do
-		local n = #srcdir.path+1
-		assert.eq(src.path:sub(1, n), srcdir.path..'/')
-		local dst = dstdir/src.path:sub(n+1)
-
-		-- add a target for it
-		targets:add{
-			dsts = {dst},
-			srcs = {src},
-			rule = |r|do
-				dst:getdir():mkdir(true)
-				cp(src, dst)
-			end,
-		}
-
-		-- also add it to our assets/ target list so our apkOfResources can reference even new files for timestamps for build updates
-		assetFiles:insertUnique(dst)
-	end
-end
 
 updateFolder(
 	path'assets_patch',
-	path'LuaJIT/app/src/main/assets'
+	assetsDir
 )
 
+local assetFiles = table.wrapfor(assetsDir:rdir()):mapi(|vk| vk[1])
 
 -- use aapt2 again to make ${apkTitle}-resources.apk
 
