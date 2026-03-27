@@ -100,6 +100,80 @@ local function getFilesForFolderChooserData(activity, data)
 	return files
 end
 
+-- [=======[ menu for watching RAM
+do
+	local isWatchingRAM
+	local statsLoopHandler
+	local statsLoopRunnable
+
+	local prevOnCreate = callbacks.onCreate
+	callbacks.onCreate = function(activity, savedInstanceState, ...)
+		prevOnCreate(activity, savedInstanceState, ...)
+
+		statsLoopHandler = J.android.os.Handler(J.android.os.Looper:getMainLooper())
+
+		local StatsLoopRunnable = J.Runnable:_subclass{
+			methods = {
+				run = {
+					isPublic = true,
+					sig = {'void'},
+					value = function(this)
+						local Debug = J.android.os.Debug
+						local mem = Debug.MemoryInfo()
+						Debug:getMemoryInfo(mem)
+						print(os.date()..' mem: '..tostring(mem:getTotalPss())..'kb')
+						if isWatchingRAM then
+							statsLoopHandler:postDelayed(this, 1000)
+						end
+					end,
+				},
+			}
+		}
+		statsLoopRunnable = StatsLoopRunnable()
+	end
+
+	local prevOnResume = callbacks.onResume
+	callbacks.onResume = function(activity)
+		prevOnResume(activity)
+		if statsLoopHandler
+		and statsLoopRunnable
+		and isWatchingRAM
+		then
+			statsLoopHandler:post(statsLoopRunnable)
+		end
+	end
+
+	local prevOnPause = callbacks.onPause
+	callbacks.onPause = function(activity)
+		prevOnPause(activity)
+		if statsLoopHandler and statsLoopRunnable then
+			statsLoopHandler:removeCallbacks(statsLoopRunnable)
+		end
+	end
+
+	local menuToggleStats = getNextMenu()
+	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
+	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
+		prevOnCreateOptionsMenu(activity, menu, ...)
+		menu:add(0, menuToggleStats, 0, 'RAM...')
+		return true
+	end
+
+	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
+	callbacks.onOptionsItemSelected = function(activity, item, ...)
+		if item:getItemId() == menuToggleStats then
+			isWatchingRAM = not isWatchingRAM
+			if isWatchingRAM then
+				statsLoopHandler:post(statsLoopRunnable)
+			else
+				statsLoopHandler:removeCallbacks(statsLoopRunnable)
+			end
+			return true
+		end
+		return prevOnOptionsItemSelected(activity, item, ...)
+	end
+end
+--]=======]
 -- [=======[ attempt at just outputting the out.txt file
 do
 	local logScrollView
@@ -218,8 +292,7 @@ print('created FileObserver.')
 		local logFile = J.java.io.File'out.txt'
 		local lastTextTime = logFile:lastModified()
 		textView:setText(path'out.txt':read() or '')
-		local Looper = J.android.os.Looper
-		logUpdateLoopHandler = J.android.os.Handler(Looper:getMainLooper())
+		logUpdateLoopHandler = J.android.os.Handler(J.android.os.Looper:getMainLooper())
 
 		local LogUpdateLoopRunnable = J.Runnable:_subclass{
 			methods = {
@@ -239,7 +312,7 @@ print('created FileObserver.')
 								logScrollView:post(ScrollToBottomRunnable())
 							end
 						end
-						logUpdateLoopHandler:postDelayed(this, 2000)
+						logUpdateLoopHandler:postDelayed(this, 1000)
 					end,
 				},
 			}
@@ -288,7 +361,6 @@ print"onCreate DONE"
 		menu:add(0, menuOpenLog, 0, 'Log...')
 		return true
 	end
-
 
 	local prevOnOptionsItemSelected = callbacks.onOptionsItemSelected
 	callbacks.onOptionsItemSelected = function(activity, item, ...)
@@ -847,11 +919,7 @@ xpcall(function()
 	fps = (fps or 0) + 1
 	if not lastTime or lastTime ~= tsec then
 		lastTime = tsec
-
-		local Debug = J.android.os.Debug
-		local mem = Debug.MemoryInfo()
-		Debug:getMemoryInfo(mem)
-		print('fps '..fps..' mem: '..tostring(mem:getTotalPss())..'kb')
+		print('fps '..fps)
 		fps = 0
 	end
 
@@ -1138,9 +1206,8 @@ do
 end
 --]=======]
 
-collectgarbage()
 return function(methodName, activity_, ...)
-print('Activity.'..methodName)
+	collectgarbage()
 	activity = activity_
 	return assert.index(callbacks, methodName)(activity_, ...)
 end
