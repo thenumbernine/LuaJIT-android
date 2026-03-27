@@ -105,7 +105,8 @@ do
 	local logScrollView
 	--local viewSwitcher
 	local logObserver
-	local logUpdater
+	local logUpdateLoopHandler
+	local logUpdateLoopRunnable
 
 	local prevOnCreate = callbacks.onCreate
 	callbacks.onCreate = function(activity, savedInstanceState, ...)
@@ -129,7 +130,7 @@ do
 			logScrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
 		end)
 
-		--[=[ still segfaulting
+		--[=[ turns out FileObserver is buggy.  Google strikes again.
 print('creating ObserverRunnable...')
 		local ObserverRunnable = J.Runnable:_subclass{
 			isPublic = true,
@@ -163,13 +164,20 @@ print('creating FileObserver...')
 			fields = {
 				activity = {
 					isPublic = true,
-					sig = activity._classpath,
+					sig = 'android.app.Activity',
 				},
-				-- if I pass runnable in here, lua-java tries to query its class's reflection and android segfaults because android is retarded
+				-- [[
+				runnable = {
+					isPublic = true,
+					sig = 'java.lang.Runnable',
+				},
+				--]]
+				--[[ alright this is now crashing
 				runnableClass = {
 					isPublic = true,
 					sig = 'java.lang.Class',
 				},
+				--]]
 			},
 			methods = {
 				onEvent = {
@@ -177,10 +185,13 @@ print('creating FileObserver...')
 					sig = {'void', 'int', 'java.lang.String'},
 					newLuaState = true,	-- new thread, new lua state
 					value = function(J, this, event, path)	-- newLuaState means 'J' first
+						J.android.os.Handler(J.android.os.Looper:getMainLooper()):post(
+							this.runnable:clone()
+						)
 						--[[
-						this.activity:runOnUiThread(this.runnable)
+						this.activity:runOnUiThread(this.runnable:clone())
 						--]]
-						-- [[ hmm segfaulting but outside of this call
+						--[[ hmm segfaulting but outside of this call
 						local ctor = this.runnableClass:getDeclaredConstructor()
 						local runnable = ctor:newInstance()
 						this.activity:runOnUiThread(runnable:_cast'java.lang.Runnable')
@@ -193,7 +204,8 @@ print('created FileObserver.')
 		local fileToWatch = J.java.io.File(activity:getFilesDir(), 'out.txt')
 		logObserver = Observer(fileToWatch:getPath(), Observer.MODIFY)
 		logObserver.activity = activity
-		logObserver.runnableClass = ObserverRunnable.class
+		logObserver.runnable = ObserverRunnable()
+		--logObserver.runnableClass = ObserverRunnable.class
 
 		-- refreshFileContent:
 		textView:setText(path'out.txt':read() or '')
@@ -202,28 +214,37 @@ print('created FileObserver.')
 		-- luajit: [string "java.jnienv"]:531: JVM java.lang.NullPointerException: Attempt to invoke interface method 'int java.util.List.size()' on a null object reference
 		logObserver:startWatching()
 		--]=]
-		-- [=[ same but without FileObserver, just run a callback and watch the file and update
+		-- [=[ without FileObserver, just run a callback and watch the file and update
 		local logFile = J.java.io.File'out.txt'
 		local lastTextTime = logFile:lastModified()
 		textView:setText(path'out.txt':read() or '')
 		local Looper = J.android.os.Looper
-		handler = J.android.os.Handler(Looper:getMainLooper())
+		logUpdateLoopHandler = J.android.os.Handler(Looper:getMainLooper())
 
-		logUpdater = J.Runnable(function()
-			local thisTextTime = logFile:lastModified()
-			if thisTextTime > lastTextTime then
-				lastTextTime = thisTextTime
+		local LogUpdateLoopRunnable = J.Runnable:_subclass{
+			methods = {
+				run = {
+					isPublic = true,
+					sig = {'void'},
+					value = function(this)
+						local thisTextTime = logFile:lastModified()
+						if thisTextTime > lastTextTime then
+							lastTextTime = thisTextTime
 
-				local isAtBottom = logScrollView:canScrollVertically(1)
+							local isAtBottom = logScrollView:canScrollVertically(1)
 
-				textView:setText(path'out.txt':read() or '')
+							textView:setText(path'out.txt':read() or '')
 
-				if isAtBottom then
-					logScrollView:post(ScrollToBottomRunnable())
-				end
-			end
-			handler:postDelayed(this, 2000)
-		end)
+							if isAtBottom then
+								logScrollView:post(ScrollToBottomRunnable())
+							end
+						end
+						logUpdateLoopHandler:postDelayed(this, 2000)
+					end,
+				},
+			}
+		}
+		logUpdateLoopRunnable = LogUpdateLoopRunnable()
 		--]=]
 
 
@@ -241,22 +262,20 @@ print"onCreate DONE"
 	local prevOnResume = callbacks.onResume
 	callbacks.onResume = function(activity)
 		prevOnResume(activity)
-		if logUpdater then
-			handler:post(logUpdater)
+		if logUpdateLoopHandler and logUpdateLoopRunnable then
+			logUpdateLoopHandler:post(logUpdateLoopRunnable)
+		end
+		if logObserver then
+			logObserver:startWatching()
 		end
 	end
 
 	local prevOnPause = callbacks.onPause
 	callbacks.onPause = function(activity)
 		prevOnPause(activity)
-		if logUpdater then
-			handler:removeCallbacks(logUpdater)
+		if logUpdateLoopHandler and logUpdateLoopRunnable then
+			logUpdateLoopHandler:removeCallbacks(logUpdateLoopRunnable)
 		end
-	end
-
-	local prevOnDestroy = callbacks.onDestroy
-	callbacks.onDestroy = function(activity)
-		prevOnDestroy(activity)
 		if logObserver then
 			logObserver:stopWatching()
 		end
@@ -1121,6 +1140,7 @@ end
 
 collectgarbage()
 return function(methodName, activity_, ...)
+print('Activity.'..methodName)
 	activity = activity_
 	return assert.index(callbacks, methodName)(activity_, ...)
 end
