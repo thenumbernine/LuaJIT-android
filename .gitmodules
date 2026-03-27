@@ -1,5 +1,5 @@
 [submodule "app/src/main/cpp/luajit"]
-	path = app/src/main/cpp/luajit
+	path = app/src/luajit
 	url = https://github.com/LuaJIT/LuaJIT
 [submodule "app/src/main/assets/ext"]
 	path = app/src/main/assets/ext

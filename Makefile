@@ -169,8 +169,8 @@ LIB_ARCH_DIR = $(LIB_DIR)/$(LIB_ARCH)
 
 LUAJIT_SO = $(LIB_ARCH_DIR)/libluajit.so
 # dependencies? a lot?
-$(LUAJIT_SO): $(shell find app/src/main/cpp/luajit -type f -name "*.c")
-	$(shell cd app/src/main/cpp && ./make-luajit-$(NDK_ARCH).sh)
+$(LUAJIT_SO): $(shell find app/src/luajit -type f -name "*.c")
+	$(shell cd app/src && ./make-luajit-$(NDK_ARCH).sh)
 	mkdir -p $(dir $(LUAJIT_SO))
 	$(CP) app/src/main/jniLibs/$(LIB_ARCH)/libluajit.so $(LUAJIT_SO)
 	$(CP) -R app/src/main/cpp/jit/$(LIB_ARCH) app/src/main/assets/jit
@@ -178,7 +178,7 @@ $(LUAJIT_SO): $(shell find app/src/main/cpp/luajit -type f -name "*.c")
 
 CPP_SRC_DIR = app/src/main/cpp
 OBJ_DIR = _obj
-# notice the include/ folder is created from the build scripts sitting in app/src/main/cpp/make-luajit-*.sh,
+# notice the include/ folder is created from the build scripts sitting in app/src/make-luajit-*.sh,
 #  which maybe I'll merge into this someday
 CFLAGS = -m32 -fPIC -Wall -I app/src/main/cpp/include/$(LIB_ARCH)
 $(OBJ_DIR)/luajit.o: $(CPP_SRC_DIR)/luajit.c $(LUAJIT_SO)

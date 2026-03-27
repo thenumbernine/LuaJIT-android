@@ -4,11 +4,13 @@ cd luajit/src
 NDKDIR=$HOME/Android/Sdk/ndk/28.2.13676358
 
 NDKBIN=$NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin
-NDKCROSS=$NDKBIN/i686-linux-android-
-NDKCC=$NDKBIN/i686-linux-android35-clang
+NDKCROSS=$NDKBIN/arm-linux-androideabi-
+NDKCC=$NDKBIN/armv7a-linux-androideabi35-clang
 
-# not building
 make clean
+
+# Chris: the first batch are env vars I usu modify directly in Makefile.  Here's hoping I can in fact override them with this.  I don't want to fork luajit. 
+# Chris: would be nice to override LJ_OS_NAME=Android ...
 make \
 	Q= \
 	E="@:" \
@@ -24,19 +26,19 @@ make \
 	DYNAMIC_CC="$NDKCC -fPIC" \
 	TARGET_LD=$NDKCC \
 	TARGET_AR="$NDKBIN/llvm-ar rcus" \
-	TARGET_STRIP="$NDKBIN/llvm-strip"
+	TARGET_STRIP=$NDKBIN/llvm-strip
 
-ANDROID_ABI=x86
+ANDROID_ABI=armeabi-v7a
 
 # copy lib
-DESTLIBDIR=../../../jniLibs/$ANDROID_ABI/
+DESTLIBDIR=../../main/jniLibs/$ANDROID_ABI/
 mkdir -p $DESTLIBDIR
 cp libluajit.so $DESTLIBDIR
 cp libluajit.a $DESTLIBDIR
 cp luajit $DESTLIBDIR
 
 # copy headers
-DESTINCDIR=../../include/$ANDROID_ABI/
+DESTINCDIR=../../main/cpp/include/$ANDROID_ABI/
 mkdir -p $DESTINCDIR
 cp lauxlib.h $DESTINCDIR
 cp luaconf.h $DESTINCDIR
@@ -47,6 +49,6 @@ cp lualib.h $DESTINCDIR
 cp lj_arch.h $DESTINCDIR
 
 # copy jit/ folder ... TODO this should go in the per-arch assets ...
-JITDIR=../../jit/$ANDROID_ABI/
+JITDIR=../../main/cpp/jit/$ANDROID_ABI/
 mkdir -p $JITDIR
 cp jit/*.lua $JITDIR

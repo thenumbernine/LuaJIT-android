@@ -242,11 +242,11 @@ libArchDir = libDir/libArch
 luajit_so = libArchDir/'libluajit.so'
 targets:add{
 	dsts = {luajit_so},
-	srcs = table.wrapfor(path'app/src/main/cpp/luajit':rdir())
+	srcs = table.wrapfor(path'app/src/luajit':rdir())
 		:mapi(|vk| vk[1])
 		:filteri(|fn| select(2, fn:getext()) == 'c'),
 	rule = |r|do
-		exec('cd app/src/main/cpp',
+		exec('cd app/src',
 			'&& ./make-luajit-'..ndkArch..'.sh')
 		r.dsts[1]:getdir():mkdir(true)
 		cp(
@@ -266,7 +266,7 @@ cppSrcs = table.wrapfor(cppSrcDir:dir())
 	:mapi(|fn| cppSrcDir/fn)
 
 objDir = path'_obj'
--- notice the include/ folder is created from the build scripts sitting in app/src/main/cpp/make-luajit-*.sh,
+-- notice the include/ folder is created from the build scripts sitting in app/src/make-luajit-*.sh,
 --  which maybe I'll merge into this someday
 cflags = '-m32 -fPIC -Wall -I '..(path'app/src/main/cpp/include'/libArch):escape()
 
