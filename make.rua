@@ -258,28 +258,45 @@ targets:add{
 	end,
 }
 
+-- TODO TODO ok I see the error of my ways now, subprojects should go somewhere else
 cppSrcDir = path'app/src/main/cpp'
+cppSrcs = table.wrapfor(cppSrcDir:dir())
+	:mapi(|vk| vk[1])
+	:filter(|fn| select(2, fn:getext()) == 'c')
+	:mapi(|fn| cppSrcDir/fn)
+
 objDir = path'_obj'
 -- notice the include/ folder is created from the build scripts sitting in app/src/main/cpp/make-luajit-*.sh,
 --  which maybe I'll merge into this someday
 cflags = '-m32 -fPIC -Wall -I '..(path'app/src/main/cpp/include'/libArch):escape()
-targets:add{	-- TODO this per ndk .c/.cpp file
-	dsts = {objDir/'luajit.o'},
-	srcs = {
-		cppSrcDir/'luajit.c',
-		luajit_so,			-- for .c to build, the luajit.so and its include files need to be in the right place
-	},
-	rule = |r|do
-		r.dsts[1]:getdir():mkdir(true)
-		ndkcc(cflags, r.srcs[1], '-c', '-o', r.dsts[1])
-	end,
-}
+
+local cppObjs = table()
+for _,srcfn in ipairs(cppSrcs) do
+	local dstfn = path((
+		assert(srcfn.path:gsub(
+			'^'..cppSrcDir.path:patescape()..'/',
+			objDir.path..'/'
+		))
+	)):setext'o'
+	cppObjs:insert(dstfn)
+	targets:add{	-- TODO this per ndk .c/.cpp file
+		dsts = {dstfn},
+		srcs = {
+			srcfn,
+			luajit_so,			-- for .c to build, the luajit.so and its include files need to be in the right place
+		},
+		rule = |r|do
+			r.dsts[1]:getdir():mkdir(true)
+			ndkcc(cflags, r.srcs[1], '-c', '-o', r.dsts[1])
+		end,
+	}
+end
 
 -- compile all ndk .o files into our .so file
 libmain_so = libArchDir/'libmain.so'
 targets:add{
 	dsts = {libmain_so},
-	srcs = table{objDir/'luajit.o'},	-- TODO srcs = all .o ndk built files
+	srcs = cppObjs,	-- TODO srcs = all .o ndk built files
 	rule = |r|do
 		r.dsts[1]:getdir():mkdir(true)
 		ndkcc('-shared', '-L'..libArchDir, '-lluajit', '-o', r.dsts[1], r.srcs:unpack())
