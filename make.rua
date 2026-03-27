@@ -181,11 +181,13 @@ targets:add{
 
 javaSrcDir = path'app/src/main/java'
 
+-- search in javaSrcDir and remove the relative search dir prefix
 -- javaSrcRelFiles is the .java files relative to javaSrcDir ... which is just one file
--- TODO search in javaSrcDir and remove the relative search dir prefix
-javaSrcRelFiles = table{
-	packageNamePath/'Activity.java'
-}
+javaSrcRelFiles = table.wrapfor(javaSrcDir:rdir())
+	:mapi(|vk| vk[1])
+	:mapi(|fn| (path(
+		assert(fn.path:match('^'..javaSrcDir.path:patescape()..'/(.*)$'))
+	)))
 
 classDir = path'_class'
 -- javaSrcClassFiles holds classes of known .java files

@@ -127,8 +127,9 @@ $(AAPT_GEN_DIR)/$(PACKAGE_NAME_PATH)/R.java: $(APK_OF_RESOURCES)
 
 JAVA_SRC_DIR = app/src/main/java
 
+# search in JAVA_SRC_DIR and remove the relative search dir prefix
 # JAVA_SRC_REL_FILES is the .java files relative to JAVA_SRC_DIR ... which is just one file
-JAVA_SRC_REL_FILES = $(PACKAGE_NAME_PATH)/Activity.java
+JAVA_SRC_REL_FILES = $(patsubst $(JAVA_SRC_DIR)/%, %, $(shell find $(JAVA_SRC_DIR) -type f -name "*.java"))
 
 CLASS_DIR = _class
 # JAVA_SRC_CLASS_FILES holds classes of known .java files
