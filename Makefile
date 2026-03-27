@@ -158,7 +158,7 @@ $(CLASSES_DEX): $(JAVA_SRC_CLASS_FILES)
 	$(D8) \
 		$(D8_FLAGS) \
 		--output $(CLASSES_DEX_DIR) \
-		$(shell find $(CLASS_DIR) -type f -name "*.class")
+		$(subst $$,\$$,$(shell find $(CLASS_DIR) -type f -name "*.class"))
 
 # compile C files as well
 
