@@ -15,9 +15,8 @@ BUILD_TOOLS_DIR = $(ANDROID_SDK_ROOT)/build-tools/$(BUILD_TOOLS_VERSION)
 
 ANDROID_JAR = $(ANDROID_PLATFORM_DIR)/android.jar
 
-NDK_VERSION = $(shell ls $(ANDROID_SDK_ROOT)/ndk | sort -nr | tail -1)
-NDK_DIR=$(ANDROID_SDK_ROOT)/ndk/$(NDK_VERSION)
-NDK_BIN=$(NDK_DIR)/toolchains/llvm/prebuilt/linux-x86_64/bin
+ANDROID_NDK_VERSION = $(shell ls $(ANDROID_SDK_ROOT)/ndk | sort -nr | tail -1)
+ANDROID_NDK_BIN=$(ANDROID_SDK_ROOT)/ndk/$(ANDROID_NDK_VERSION)/toolchains/llvm/prebuilt/linux-x86_64/bin
 
 
 JAVAC_FLAGS = -classpath $(ANDROID_JAR)
@@ -31,7 +30,7 @@ RM = rm
 MKDIR = mkdir
 ZIP = zip
 JAVAC = $(ANDROID_STUDIO_ROOT)/jbr/bin/javac
-NDKCC = $(NDK_BIN)/$(NDK_ARCH)-linux-androideabi35-clang
+NDKCC = $(ANDROID_NDK_BIN)/$(NDK_ARCH)-linux-androideabi35-clang
 AAPT2 = $(BUILD_TOOLS_DIR)/aapt2
 D8 = $(BUILD_TOOLS_DIR)/d8
 ZIPALIGN = $(BUILD_TOOLS_DIR)/zipalign
@@ -167,20 +166,23 @@ LIB_ARCH_DIR = $(LIB_DIR)/$(LIB_ARCH)
 
 # make sure luajit.so is there
 
+# path to my https://github.com/thenumbernine/LuaJIT-android-lib repo for doing nothing more than building libluajit.so , the include and the jit folder per-arch
+LUAJIT_ANDROID_LIB_PATH = ../LuaJIT-lib
+LUAJIT_ANDROID_LIB_ARCH_PATH = $(LUAJIT_ANDROID_LIB_PATH)/dist/android/$(LIB_ARCH)
+
 LUAJIT_SO = $(LIB_ARCH_DIR)/libluajit.so
 # dependencies? a lot?
-$(LUAJIT_SO): $(shell find app/src/luajit -type f -name "*.c")
-	$(shell cd app/src && ./make-luajit-$(NDK_ARCH).sh)
+$(LUAJIT_SO): $(LUAJIT_ANDROID_LIB_ARCH_PATH)/lib/libluajit.so
+	$(shell cd $(LUAJIT_ANDROID_LIB_PATH) && make)
 	mkdir -p $(dir $(LUAJIT_SO))
-	$(CP) app/src/main/jniLibs/$(LIB_ARCH)/libluajit.so $(LUAJIT_SO)
-	$(CP) -R app/src/main/cpp/jit/$(LIB_ARCH) app/src/main/assets/jit
+	$(CP) $< $@
+	$(CP) -R $(LUAJIT_ANDROID_LIB_ARCH_PATH)jit app/src/main/assets/jit
 
 
 CPP_SRC_DIR = app/src/main/cpp
 OBJ_DIR = _obj
-# notice the include/ folder is created from the build scripts sitting in app/src/make-luajit-*.sh,
-#  which maybe I'll merge into this someday
-CFLAGS = -m32 -fPIC -Wall -I app/src/main/cpp/include/$(LIB_ARCH)
+# the include/ folder contents is in the LuaJIT-android-lib project
+CFLAGS = -m32 -fPIC -Wall -I $(LUAJIT_ANDROID_LIB_ARCH_PATH)/include
 $(OBJ_DIR)/luajit.o: $(CPP_SRC_DIR)/luajit.c $(LUAJIT_SO)
 	$(MKDIR) -p $(OBJ_DIR)
 	$(NDKCC) $(CFLAGS) $^ -c -o $@

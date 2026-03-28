@@ -28,7 +28,7 @@ androidStudioRoot = home/'android-studio'
 androidSdkRoot = home/'Android/Sdk'
 buildToolsDir = latest(androidSdkRoot/'build-tools')
 androidJar = latest(androidSdkRoot/'platforms')/'android.jar'
-ndkBin = latest(androidSdkRoot/'ndk')/'toolchains/llvm/prebuilt/linux-x86_64/bin'
+androidNdkBin = latest(androidSdkRoot/'ndk')/'toolchains/llvm/prebuilt/linux-x86_64/bin'
 
 javacFlags = table{
 	'-classpath '..androidJar:escape(),
@@ -45,7 +45,7 @@ local cp = |...| exec('cp', ...)
 local rm = |...| exec('rm', ...)
 local zip = |...| exec('zip', ...)
 local javac = |...| exec(androidStudioRoot/'jbr/bin/javac', ...)
-local ndkcc = |...| exec(ndkBin/(ndkArch..'-linux-androideabi35-clang'), ...)
+local ndkcc = |...| exec(androidNdkBin/(ndkArch..'-linux-androideabi35-clang'), ...)
 local aapt2 = |...| exec(buildToolsDir/'aapt2', ...)
 local d8 = |...| exec(buildToolsDir/'d8', ...)
 local zipalign = |...| exec(buildToolsDir/'zipalign', ...)
@@ -241,21 +241,23 @@ libArchDir = libDir/libArch
 
 -- make sure luajit.so is there
 
+-- path to my https://github.com/thenumbernine/LuaJIT-android-lib repo for doing nothing more than building libluajit.so , the include and the jit folder per-arch
+luajitAndroidLibPath = path'../LuaJIT-lib'
+luajitAndroidLibArchPath = luajitAndroidLibPath/'dist/android'/libArch
+
 luajit_so = libArchDir/'libluajit.so'
 targets:add{
 	dsts = {luajit_so},
-	srcs = table.wrapfor(path'app/src/luajit':rdir())
-		:mapi(|vk| vk[1])
-		:filteri(|fn| select(2, fn:getext()) == 'c'),
+	srcs = {luajitAndroidLibArchPath/'lib/libluajit.so'},
 	rule = |r|do
-		exec('cd app/src',
-			'&& ./make-luajit-'..ndkArch..'.sh')
+		-- make sure it's built
+		-- TODO pass libArch as well
+		exec('cd', luajitAndroidLibPath,
+			'&&', './make.rua')
 		r.dsts[1]:getdir():mkdir(true)
-		cp(
-			'app/src/main/jniLibs/'..libArch..'/libluajit.so',
-			luajit_so)
+		cp(r.srcs[1], r.dsts[1])
 		cp('-R',
-			'app/src/main/cpp/jit/'..libArch,
+			luajitAndroidLibArchPath/'jit',
 			'app/src/main/assets/jit')
 	end,
 }
@@ -268,9 +270,8 @@ cppSrcs = table.wrapfor(cppSrcDir:dir())
 	:mapi(|fn| cppSrcDir/fn)
 
 objDir = path'_obj'
--- notice the include/ folder is created from the build scripts sitting in app/src/make-luajit-*.sh,
---  which maybe I'll merge into this someday
-cflags = '-m32 -fPIC -Wall -I '..(path'app/src/main/cpp/include'/libArch):escape()
+-- the include/ folder contents is in the LuaJIT-android-lib project
+cflags = '-m32 -fPIC -Wall -I '..(luajitAndroidLibArchPath/'include'):escape()
 
 local cppObjs = table()
 for _,srcfn in ipairs(cppSrcs) do

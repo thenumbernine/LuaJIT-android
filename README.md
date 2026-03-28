@@ -38,14 +38,13 @@ And if you really really want, you can use ADB once and only once to redirect to
 
 # Build:
 
-1) The gradlew script works.  But Gradle sucks.  You will have to manually do some steps that I haven't bothered figure out with gradle myself:
-- 1) `cd app/src/main/cpp` and run the `./make-luajit-${ndk-arch}.sh` script corresponding to what arch you want to use.
-- 2) copy the created folder `app/src/main/cpp/jit/${lib-arch}` folder to reside at `app/src/main/assets/jit`
-- 3) copy `assets_patch/lua/lua.lua` over `app/src/main/assets/lua/lua.lua`.
+1) The Makefile works.  It runs on a few MB instead of a few GB, that's why I use it over Gradle.
 
-2) The Makefile works.  It runs on a few MB instead of a few GB, that's why I use it over Gradle.
+2) The `make.rua` works.  It is written in my [langfix-lua](http://github.com/thenumbernine/langfix-lua) script.  If you want a full script to do your building and if you want better error debugging than GNU Make then it is nice.
 
-3) The `make.rua` works.  It is written in my [langfix-lua](http://github.com/thenumbernine/langfix-lua) script.  If you want a full script to do your building and if you want better error debugging than GNU Make then it is nice.
+3) ~~The gralde script works~~ haha not any more.  I hate gradle.  Stop using trash.
+
+Also instead of a trendy bloated and slow all-in-one repo, I split off the android luajit `.so` cross-compiling into a new repo: https://github.com/thenumbernine/LuaJIT-android-lib .  Now you just build the library once for all derived project, not once per project. 
 
 # Different App Package/Name?
 
