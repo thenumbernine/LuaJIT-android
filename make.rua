@@ -187,6 +187,7 @@ javaSrcDir = path'app/src/main/java'
 -- javaSrcRelFiles is the .java files relative to javaSrcDir ... which is just one file
 javaSrcRelFiles = table.wrapfor(javaSrcDir:rdir())
 	:mapi(|vk| vk[1])
+	:filteri(|fn| select(2, fn:getext()) == 'java')
 	:mapi(|fn| (path(
 		assert(fn.path:match('^'..javaSrcDir.path:patescape()..'/(.*)$'))
 	)))
@@ -266,7 +267,7 @@ targets:add{
 cppSrcDir = path'app/src/main/cpp'
 cppSrcs = table.wrapfor(cppSrcDir:dir())
 	:mapi(|vk| vk[1])
-	:filter(|fn| select(2, fn:getext()) == 'c')
+	:filteri(|fn| select(2, fn:getext()) == 'c')
 	:mapi(|fn| cppSrcDir/fn)
 
 objDir = path'_obj'
