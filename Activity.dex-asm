@@ -466,4 +466,3 @@
 	const/4 v0 0
 	return-object v0
 .end method
-

@@ -14,6 +14,10 @@ local Activity = J.android.app.Activity
 local Intent = J.android.content.Intent
 local LinearLayout = J.android.widget.LinearLayout
 local ViewGroup = J.android.view.ViewGroup
+local View = J.android.view.View
+local Button = J.android.widget.Button
+local TypedValue = J.android.util.TypedValue
+local InputType = J.android.text.InputType
 
 
 --print('_G='..tostring(_G)..', jniEnv='..tostring(J._ptr))
@@ -176,7 +180,7 @@ end
 --]=======]
 -- [=======[ attempt at just outputting the out.txt file
 do
-	local logScrollView
+	local logReaderView
 	--local viewSwitcher
 	local logObserver
 	local logUpdateLoopHandler
@@ -186,22 +190,105 @@ do
 	callbacks.onCreate = function(activity, savedInstanceState, ...)
 		prevOnCreate(activity, savedInstanceState, ...)
 
+		local RelativeLayout = J.android.widget.RelativeLayout
+		logReaderView = RelativeLayout(activity)
+		logReaderView:setLayoutParams(RelativeLayout.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT,
+			ViewGroup.LayoutParams.MATCH_PARENT
+		))
+
+		local bottomMenu
+		do
+			local runTextWeight = 7
+			local runButtonWeight = 1
+
+			bottomMenu = LinearLayout(activity)
+			bottomMenu:setId(View:generateViewId())
+			bottomMenu:setOrientation(LinearLayout.HORIZONTAL)
+			bottomMenu:setWeightSum(runTextWeight + runButtonWeight)
+			local params = RelativeLayout.LayoutParams(
+				RelativeLayout.LayoutParams.MATCH_PARENT,
+				RelativeLayout.LayoutParams.WRAP_CONTENT
+			)
+			params:addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
+			bottomMenu:setLayoutParams(params)
+
+			local EditText = J.android.widget.EditText
+			local runText = EditText(activity)
+			runText:setLines(1)
+			runText:setInputType(InputType.TYPE_CLASS_TEXT)
+			runText:setHint'run cmd...'
+			runText:setLayoutParams(LinearLayout.LayoutParams(
+				0,	--- width
+				LinearLayout.LayoutParams.WRAP_CONTENT,	-- height
+				runTextWeight	-- layout weight
+			))
+			bottomMenu:addView(runText)
+
+			local buttonRun = Button(activity)
+			buttonRun:setText'>'
+			--buttonRun:setTextSize(TypedValue.COMPLEX_UNIT_SP, uiFontSize)
+			buttonRun:setLayoutParams(LinearLayout.LayoutParams(
+				0,
+				LinearLayout.LayoutParams.WRAP_CONTENT,
+				runButtonWeight
+			))
+			buttonRun:setOnClickListener(View.OnClickListener(function()
+				-- get text from runText and run it
+				local cmd = tostring(runText:getText())
+				runText:setText''
+				print('>'..cmd)	-- goes to out.txt, goes to the log display
+
+				local f, err
+				xpcall(function()
+					f, err = assert(load('return '..cmd))
+				end, function(err)
+				end)
+
+				if not f then
+					f, err = load(cmd)
+				end
+				if not f then
+					print(err)
+				else
+					xpcall(function()
+						local function printargs(...)
+							if select('#', ...) > 0 then print(...) end
+						end
+						printargs(f())
+					end, function(err)
+						print(err, '\n', debug.traceback())
+					end)
+				end
+			end))
+			bottomMenu:addView(buttonRun)
+		end
+
+		local logScrollView = J.android.widget.ScrollView(activity)
+		local params = RelativeLayout.LayoutParams(
+			ViewGroup.LayoutParams.MATCH_PARENT,
+			ViewGroup.LayoutParams.MATCH_PARENT
+		)
+		params:addRule(RelativeLayout.ALIGN_PARENT_TOP)
+		params:addRule(RelativeLayout.ABOVE, bottomMenu:getId())
+		logScrollView:setLayoutParams(params)
+		logReaderView:addView(logScrollView)
+
 		local textView = J.android.widget.TextView(activity)
 		textView:setLayoutParams(ViewGroup.LayoutParams(
-			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+			ViewGroup.LayoutParams.MATCH_PARENT,
+			ViewGroup.LayoutParams.MATCH_PARENT
 		))
 		textView:setPadding(16, 16, 16, 16)
+		textView:setTextIsSelectable(true)
 		textView:setTypeface(J.android.graphics.Typeface.MONOSPACE)
-		textView:setTextSize(J.android.util.TypedValue.COMPLEX_UNIT_SP, 12)
-
-		logScrollView = J.android.widget.ScrollView(activity)
-		logScrollView:setLayoutParams(ViewGroup.LayoutParams(
-			ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-		))
+		textView:setTextSize(TypedValue.COMPLEX_UNIT_SP, 12)
 		logScrollView:addView(textView)
 
+		logReaderView:addView(bottomMenu)
+
 		local ScrollToBottomRunnable = J.Runnable:_cbClass(function()
-			logScrollView:fullScroll(J.android.view.View.FOCUS_DOWN)
+			logScrollView:fullScroll(View.FOCUS_DOWN)
 		end)
 
 		--[=[ turns out FileObserver is buggy.  Google strikes again.
@@ -366,7 +453,7 @@ print"onCreate DONE"
 	callbacks.onOptionsItemSelected = function(activity, item, ...)
 		if item:getItemId() == menuOpenLog then
 			-- [[ open the log ... but doesn't use back buttons
-			activity:setContentView(logScrollView)
+			activity:setContentView(logReaderView)
 			--]]
 			--[[ open ?
 			viewSwitcher:showNext()	-- do you have any control over what view is going to be shown, or did retards make Android?
@@ -628,9 +715,6 @@ _G.audios = audios	-- don't gc
 							isPublic = true,
 							sig = {'android.view.View', 'int', 'android.view.View', 'android.view.ViewGroup'},
 							value = function(this, position, convertView, parent)
-								local View = J.android.view.View
-								local Button = J.android.widget.Button
-
 								local layout = LinearLayout(activity)
 								layout:setOrientation(LinearLayout.HORIZONTAL)
 								layout:setPadding(20, 20, 20, 20)
