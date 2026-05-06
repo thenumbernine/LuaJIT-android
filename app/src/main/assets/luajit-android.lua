@@ -213,17 +213,29 @@ do
 			params:addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
 			bottomMenu:setLayoutParams(params)
 
+			local runCmd
+
 			local EditText = J.android.widget.EditText
-			local runText = EditText(activity)
-			runText:setLines(1)
-			runText:setInputType(InputType.TYPE_CLASS_TEXT)
-			runText:setHint'run cmd...'
-			runText:setLayoutParams(LinearLayout.LayoutParams(
+			local textRun = EditText(activity)
+			textRun:setLines(1)
+			textRun:setInputType(InputType.TYPE_CLASS_TEXT)
+			textRun:setHint'run cmd...'
+			textRun:setLayoutParams(LinearLayout.LayoutParams(
 				0,	--- width
 				LinearLayout.LayoutParams.WRAP_CONTENT,	-- height
 				runTextWeight	-- layout weight
 			))
-			bottomMenu:addView(runText)
+			local TextView = J.android.widget.TextView
+			local EditorInfo = J.android.view.inputmethod.EditorInfo
+			textRun:setImeActionLabel('Run', EditorInfo.IME_ACTION_DONE)
+			textRun:setOnEditorActionListener(TextView.OnEditorActionListener(function(self, textView, actionId, event)
+				if actionId == EditorInfo.IME_ACTION_DONE then
+					runCmd()
+					return true
+				end
+				return false
+			end))
+			bottomMenu:addView(textRun)
 
 			local buttonRun = Button(activity)
 			buttonRun:setText'>'
@@ -234,9 +246,18 @@ do
 				runButtonWeight
 			))
 			buttonRun:setOnClickListener(View.OnClickListener(function()
-				-- get text from runText and run it
-				local cmd = tostring(runText:getText())
-				runText:setText''
+				runCmd()
+			end))
+			bottomMenu:addView(buttonRun)
+
+
+			-- writing these to global for buttonRun's load's sake:
+			_G.J = J
+			_G.activity = activity
+
+			runCmd = function()				-- get text from textRun and run it
+				local cmd = tostring(textRun:getText())
+				textRun:setText''
 				print('>'..cmd)	-- goes to out.txt, goes to the log display
 
 				local f, err
@@ -260,8 +281,7 @@ do
 						print(err, '\n', debug.traceback())
 					end)
 				end
-			end))
-			bottomMenu:addView(buttonRun)
+			end
 		end
 
 		local logScrollView = J.android.widget.ScrollView(activity)
@@ -445,7 +465,7 @@ print"onCreate DONE"
 	local prevOnCreateOptionsMenu = callbacks.onCreateOptionsMenu
 	callbacks.onCreateOptionsMenu = function(activity, menu, ...)
 		prevOnCreateOptionsMenu(activity, menu, ...)
-		menu:add(0, menuOpenLog, 0, 'Log...')
+		menu:add(0, menuOpenLog, 0, 'Console...')
 		return true
 	end
 

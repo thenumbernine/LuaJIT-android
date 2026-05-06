@@ -58,6 +58,9 @@
 	<!-- if you want to connect to the network or internet, uncomment this. -->
 	<uses-permission android:name="android.permission.INTERNET" />
 
+	<!-- I wanted to set the wallpaper one time.  Google is retarded and didn't want me to. -->
+	<uses-permission android:name="android.permission.SET_WALLPAPER"/>
+
     <permission android:name="io.github.thenumbernine.LuaJIT.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" android:protectionLevel="signature" />
     <uses-permission android:name="io.github.thenumbernine.LuaJIT.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
 	<!--
