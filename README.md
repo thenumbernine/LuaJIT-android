@@ -3,6 +3,10 @@
 
 # LuaJIT launcher for Android
 
+- make your install 1000x smaller, no need to use Android Studio!
+- make your repos 1000x smaller without all those bloated gradle and Android Studio cache files and intermediate build files!
+- make your deployed app 1000x smaller: this LuaJIT launcher demo is 200kb, meanwhile Android Clock is reported up to 80mb.
+
 This is going to do as minimum as possible in Android before running the `/data/data/io.github.thenumbernine.LuaJIT/files/main.lua`.
 
 From there, a classloader into the assets will allow loading [lua-java](https://github.com/thenumbernine/lua-java).
