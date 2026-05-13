@@ -22,7 +22,7 @@ local newAppName = cfg!.appname
 local replaceNames = |s|
 	((s
 		-- replace dot-separated names
-		:gsub(oldPackage:patescape(), newPackage)	
+		:gsub(oldPackage:patescape(), newPackage)
 		-- replace underscore-separated names
 		:gsub(oldPackage:gsub('%.', '_'), (newPackage:gsub('%.', '_')))
 		-- maybe someday replace slash-separated but those are only present in the asm-dex files, honestly I will autogen that someday soon anyways
