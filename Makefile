@@ -154,7 +154,8 @@ $(LUAJIT_SO): $(LUAJIT_ANDROID_LIB_ARCH_PATH)/lib/libluajit.so
 	-$(shell cd $(LUAJIT_ANDROID_LIB_PATH) && make)
 	mkdir -p $(dir $(LUAJIT_SO))
 	$(CP) $< $@
-	$(CP) -R $(LUAJIT_ANDROID_LIB_ARCH_PATH)/jit app/src/main/assets/jit
+	-$(RM) -fr /app/src/main/assets/ffi
+	$(CP) -R $(LUAJIT_ANDROID_LIB_ARCH_PATH)/jit app/src/main/assets/
 
 
 CPP_SRC_DIR = app/src/main/cpp

@@ -212,9 +212,14 @@ targets:add{
 			'&&', './make.rua')
 		r.dsts[1]:getdir():mkdir(true)
 		cp(r.srcs[1], r.dsts[1])
+		local jitDir = path'app/src/main/assets/jit'
+		if jitDir:exists() then
+			rm('-fr', jitDir)	-- out with the old ...
+		end
 		cp('-R',
 			luajitAndroidLibArchPath/'jit',
-			'app/src/main/assets/jit')
+			'app/src/main/assets/'	-- not the last /jit or it'll make /jit/jit, but also make sure you have the trailing / ...
+		)
 	end,
 }
 
