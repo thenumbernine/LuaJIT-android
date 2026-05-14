@@ -159,8 +159,19 @@ $(LUAJIT_SO): $(LUAJIT_ANDROID_LIB_ARCH_PATH)/lib/libluajit.so
 
 CPP_SRC_DIR = app/src/main/cpp
 OBJ_DIR = _obj
+
 # the include/ folder contents is in the LuaJIT-android-lib project
-CFLAGS = -m32 -fPIC -Wall -I $(LUAJIT_ANDROID_LIB_ARCH_PATH)/include
+CFLAGS = -fPIC -Wall -I $(LUAJIT_ANDROID_LIB_ARCH_PATH)/include
+
+# TODO this and hostCC better ...
+ifeq ($(ARCH),arm_32)
+	CFLAGS = -m32 $(CFLAGS)
+else
+ifeq ($(ARCH),x64_32)
+	CFLAGS = -m32 $(CFLAGS)
+endif
+endif
+
 $(OBJ_DIR)/luajit.o: $(CPP_SRC_DIR)/luajit.c $(LUAJIT_SO)
 	$(MKDIR) -p $(OBJ_DIR)
 	$(NDKCC_PATH) $(CFLAGS) $^ -c -o $@

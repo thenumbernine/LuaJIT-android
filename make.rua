@@ -2,33 +2,9 @@
 --[[
 This one uses lua-make's make.targets, but not the lua-make buildinfo scripts (because those are pretty hard-coded for C++ projects)
 --]]
-local Targets = require 'make.targets'
-local targets = Targets() --{verbose=true}
 
-local dirsort = |p|
-	table.wrapfor(p:dir())
-	:mapi(|vk| vk[1])
-	:sort(|a,b| a.path < b.path)	-- is < in Path already?
-
-local latest = |p| p/dirsort(p):last()
-
---[[ verbose output.  comment out to disable.
-assert.eq(getmetatable(_G), nil)
-setmetatable(_G, {
-	__newindex = |t,k,v|do
-		print(k,'=',v)
-		rawset(t, k, v)
-	end,
-})
---]]
-
-home = path(os.home())
-
-androidStudioRoot = home/'android-studio'
-androidSdkRoot = home/'Android/Sdk'
-buildToolsDir = latest(androidSdkRoot/'build-tools')
-androidJar = latest(androidSdkRoot/'platforms')/'android.jar'
-androidNdkBin = latest(androidSdkRoot/'ndk')/'toolchains/llvm/prebuilt/linux-x86_64/bin'
+arch = 'arm_64'
+dofile'../LuaJIT-lib/config.rua'
 
 javacFlags = table{
 	'-classpath '..androidJar:escape(),
@@ -36,24 +12,6 @@ javacFlags = table{
 }:concat' '
 
 d8flags = '--classpath '..androidJar:escape()
-
-local arch = 'arm_64'
--- writes libArch, ndkCrossPrefix, ndkccFn, hostCC:
-table.union(_G, dofile'../LuaJIT-lib/config.rua'(arch))
-
--- what programs does this script need?
--- this is starting to look similar to lua-sh...
-local exec = |...| assert(os.exec(...))	-- assert or nah?
-local cp = |...| exec('cp', ...)
-local rm = |...| exec('rm', ...)
-local zip = |...| exec('zip', ...)
-local javac = |...| exec(androidStudioRoot/'jbr/bin/javac', ...)
-local aapt2 = |...| exec(buildToolsDir/'aapt2', ...)
-local d8 = |...| exec(buildToolsDir/'d8', ...)
-local zipalign = |...| exec(buildToolsDir/'zipalign', ...)
-local apksigner = |...| exec(buildToolsDir/'apksigner', ...)
-local adb = |...| exec(androidSdkRoot/'platform-tools/adb', ...)
-local ndkcc = |...| exec(androidNdkBin/ndkccFn, ...)
 
 
 apkTitle = 'LuaJIT'
@@ -269,7 +227,12 @@ cppSrcs = table.wrapfor(cppSrcDir:dir())
 
 objDir = path'_obj'
 -- the include/ folder contents is in the LuaJIT-android-lib project
-cflags = '-m32 -fPIC -Wall -I '..(luajitAndroidLibArchPath/'include'):escape()
+cflags = '-fPIC -Wall -I '..(luajitAndroidLibArchPath/'include'):escape()
+
+-- TODO this and hostCC better ...
+if arch:sub(-2) == '32' then
+	cflags = '-m32 '..cflags
+end
 
 local cppObjs = table()
 for _,srcfn in ipairs(cppSrcs) do
