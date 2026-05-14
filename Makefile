@@ -30,7 +30,6 @@ RM = rm
 MKDIR = mkdir
 ZIP = zip
 JAVAC = $(ANDROID_STUDIO_ROOT)/jbr/bin/javac
-NDKCC = $(ANDROID_NDK_BIN)/$(NDK_ARCH)-linux-androideabi35-clang
 AAPT2 = $(BUILD_TOOLS_DIR)/aapt2
 D8 = $(BUILD_TOOLS_DIR)/d8
 ZIPALIGN = $(BUILD_TOOLS_DIR)/zipalign
@@ -42,12 +41,8 @@ APK_TITLE = LuaJIT
 PACKAGE_NAME = io.github.thenumbernine.LuaJIT
 PACKAGE_NAME_PATH = $(subst .,/,$(PACKAGE_NAME))
 
-
-# arch folder in lib/
-LIB_ARCH=armeabi-v7a
-# arch prefix in NDK
-NDK_ARCH=armv7a
-
+# defines LIB_ARCH, NDK_CROSS_PREFIX, NDKCC, HOST_CC
+include ../LuaJIT-lib/Config.mk
 
 # Use aapt2 to compile resources into compiled_resources.zip
 # This produces a bunch of files $(dir)_$(file).xml.flat based on res/$(dir)/$(file).xml ... smfh what a stupid build process

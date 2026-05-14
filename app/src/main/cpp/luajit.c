@@ -208,7 +208,7 @@ int androidAssetLoader(lua_State *L) {
 		if (lua_toboolean(L, -1)) {
 			// is directory
 			lua_pop(L, 1);							// stack: [args&locals], fn
-			
+
 			char const * errmsg = "is an asset dir: ";
 			lua_pushvalue(L, insertloc);			// stack: [args&locals], fn, insert
 			lua_pushvalue(L, reasonsloc);			// stack: [args&locals], fn, insert, reasons
@@ -226,7 +226,7 @@ int androidAssetLoader(lua_State *L) {
 			if (!lua_toboolean(L, -1)) {
 				// not a file
 				lua_pop(L, 1);							// stack: [args&locals], fn
-				
+
 				char const * errmsg = "not an asset path: ";
 				lua_pushvalue(L, insertloc);
 				lua_pushvalue(L, reasonsloc);
@@ -257,7 +257,7 @@ int androidAssetLoader(lua_State *L) {
 					lua_getglobal(L, "tostring");			// stack: [args&locals], fn, result, errmsg, insert, reasons, fn, " ", tostring
 					lua_pushvalue(L, errmsgloc);			// stack: [args&locals], fn, result, errmsg, insert, reasons, fn, " ", tostring, errmsg
 					lua_call(L, 1, 1);						// stack: [args&locals], fn, result, errmsg, insert, reasons, fn, " ", tostring(errmsg)
-					
+
 					lua_concat(L, 3);						// stack: [args&locals], fn, result, errmsg, insert, reasons, fn.." "..tostring(errmsg)
 					lua_call(L, 2, 0);						// stack: [args&locals], fn, result, errmsg 	| table.insert(reasons, fn.." "..tostring(errmsg))
 					lua_pop(L, 3);							// stack: [args&locals]
@@ -337,15 +337,15 @@ int androidLuajitInitState(lua_State *L) {
 	lua_getglobal(L, "package");				// stack: table.insert, package
 	lua_getfield(L, -1, "loaders");				// stack: table.insert, package, package.loaders
 	lua_remove(L, -2);							// stack: table.insert, package.loaders
-	
+
 	lua_pushcfunction(L, androidAssetLoader);	// stack: table.insert, package.loaders, androidAssetLoader
-	
+
 	lua_call(L, 2, 0);							// stack:
 
 	return 0;
 }
 
-/* 
+/*
 run this once per app starting
 it launches main.lua and gets the callback for the Activity methods
 */
@@ -473,7 +473,7 @@ JNIEXPORT jobject JNICALL Java_io_github_thenumbernine_LuaJIT_Activity_nativeLua
 
 	lua_pushlightuserdata(L, this);			// main, msg, this
 	lua_pushlightuserdata(L, args);			// main, msg, this, args
-	
+
 	int status = safecall(L, 3, 1);
 	if (status != LUA_OK) {
 		report(L, status);

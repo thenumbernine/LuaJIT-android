@@ -37,6 +37,9 @@ javacFlags = table{
 
 d8flags = '--classpath '..androidJar:escape()
 
+local arch = 'arm_64'
+-- writes libArch, ndkCrossPrefix, ndkccFn, hostCC:
+table.union(_G, dofile'../LuaJIT-lib/config.rua'(arch))
 
 -- what programs does this script need?
 -- this is starting to look similar to lua-sh...
@@ -45,23 +48,17 @@ local cp = |...| exec('cp', ...)
 local rm = |...| exec('rm', ...)
 local zip = |...| exec('zip', ...)
 local javac = |...| exec(androidStudioRoot/'jbr/bin/javac', ...)
-local ndkcc = |...| exec(androidNdkBin/(ndkArch..'-linux-androideabi35-clang'), ...)
 local aapt2 = |...| exec(buildToolsDir/'aapt2', ...)
 local d8 = |...| exec(buildToolsDir/'d8', ...)
 local zipalign = |...| exec(buildToolsDir/'zipalign', ...)
 local apksigner = |...| exec(buildToolsDir/'apksigner', ...)
 local adb = |...| exec(androidSdkRoot/'platform-tools/adb', ...)
+local ndkcc = |...| exec(androidNdkBin/ndkccFn, ...)
 
 
 apkTitle = 'LuaJIT'
 packageName = 'io.github.thenumbernine.LuaJIT'
 packageNamePath = path((packageName:gsub('%.', '/')))
-
--- multiple names per arch ...
--- TODO run the build for multiple arch's
-libArch = 'armeabi-v7a'	-- arch folder in lib/
-ndkArch = 'armv7a'		-- arch prefix in NDK
-
 
 
 -- Use aapt2 to compile resources into compiled_resources.zip

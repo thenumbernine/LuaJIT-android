@@ -73,7 +73,7 @@ public class Activity extends android.app.Activity {
 	public void onRestoreInstanceState(Bundle outState, PersistableBundle persistentState) {
 		luajitCall("onRestoreInstanceState", outState, persistentState);
 	}
-	
+
 	@Override
 	public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
 		luajitCall("onSaveInstanceState", outState, outPersistentState);
