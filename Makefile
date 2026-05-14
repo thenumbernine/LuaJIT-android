@@ -3,21 +3,7 @@
 .PHONY: default
 default: all
 
-
-ANDROID_STUDIO_ROOT = $(HOME)/android-studio
-ANDROID_SDK_ROOT = $(HOME)/Android/Sdk
-
-ANDROID_PLATFORM_VERSION = $(shell ls $(ANDROID_SDK_ROOT)/platforms | sort -nr | tail -1)
-ANDROID_PLATFORM_DIR = $(ANDROID_SDK_ROOT)/platforms/$(ANDROID_PLATFORM_VERSION)
-
-BUILD_TOOLS_VERSION = $(shell ls $(ANDROID_SDK_ROOT)/build-tools | sort -n |tail -1)
-BUILD_TOOLS_DIR = $(ANDROID_SDK_ROOT)/build-tools/$(BUILD_TOOLS_VERSION)
-
-ANDROID_JAR = $(ANDROID_PLATFORM_DIR)/android.jar
-
-ANDROID_NDK_VERSION = $(shell ls $(ANDROID_SDK_ROOT)/ndk | sort -nr | tail -1)
-ANDROID_NDK_BIN=$(ANDROID_SDK_ROOT)/ndk/$(ANDROID_NDK_VERSION)/toolchains/llvm/prebuilt/linux-x86_64/bin
-
+include ../LuaJIT-lib/Config.mk
 
 JAVAC_FLAGS = -classpath $(ANDROID_JAR)
 JAVAC_FLAGS += -Xlint:deprecation
@@ -40,9 +26,6 @@ ADB = adb
 APK_TITLE = LuaJIT
 PACKAGE_NAME = io.github.thenumbernine.LuaJIT
 PACKAGE_NAME_PATH = $(subst .,/,$(PACKAGE_NAME))
-
-# defines LIB_ARCH, NDK_CROSS_PREFIX, NDKCC, HOST_CC
-include ../LuaJIT-lib/Config.mk
 
 # Use aapt2 to compile resources into compiled_resources.zip
 # This produces a bunch of files $(dir)_$(file).xml.flat based on res/$(dir)/$(file).xml ... smfh what a stupid build process
@@ -168,10 +151,10 @@ LUAJIT_ANDROID_LIB_ARCH_PATH = $(LUAJIT_ANDROID_LIB_PATH)/dist/android/$(LIB_ARC
 LUAJIT_SO = $(LIB_ARCH_DIR)/libluajit.so
 # dependencies? a lot?
 $(LUAJIT_SO): $(LUAJIT_ANDROID_LIB_ARCH_PATH)/lib/libluajit.so
-	$(shell cd $(LUAJIT_ANDROID_LIB_PATH) && make)
+	-$(shell cd $(LUAJIT_ANDROID_LIB_PATH) && make)
 	mkdir -p $(dir $(LUAJIT_SO))
 	$(CP) $< $@
-	$(CP) -R $(LUAJIT_ANDROID_LIB_ARCH_PATH)jit app/src/main/assets/jit
+	$(CP) -R $(LUAJIT_ANDROID_LIB_ARCH_PATH)/jit app/src/main/assets/jit
 
 
 CPP_SRC_DIR = app/src/main/cpp
@@ -180,13 +163,13 @@ OBJ_DIR = _obj
 CFLAGS = -m32 -fPIC -Wall -I $(LUAJIT_ANDROID_LIB_ARCH_PATH)/include
 $(OBJ_DIR)/luajit.o: $(CPP_SRC_DIR)/luajit.c $(LUAJIT_SO)
 	$(MKDIR) -p $(OBJ_DIR)
-	$(NDKCC) $(CFLAGS) $^ -c -o $@
+	$(NDKCC_PATH) $(CFLAGS) $^ -c -o $@
 
 # compile all ndk .o files into our .so file
 LIBMAIN_SO = $(LIB_ARCH_DIR)/libmain.so
 $(LIBMAIN_SO): $(OBJ_DIR)/luajit.o
 	$(MKDIR) -p $(LIB_ARCH_DIR)
-	$(NDKCC) -shared -L$(LIB_ARCH_DIR) -lluajit -o $@ $^
+	$(NDKCC_PATH) -shared -L$(LIB_ARCH_DIR) -lluajit -o $@ $^
 
 # now add the dex to the apk
 
