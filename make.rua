@@ -7,7 +7,8 @@ arch = 'arm_64'
 dofile'../LuaJIT-lib/config.rua'
 
 javacFlags = table{
-	'-classpath '..androidJar:escape(),
+	'--release', '17',
+	'-classpath', androidJar:escape(),
 	'-Xlint:deprecation',
 }:concat' '
 
