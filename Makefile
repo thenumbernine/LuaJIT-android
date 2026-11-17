@@ -5,7 +5,9 @@ default: all
 
 include ../LuaJIT-lib/Config.mk
 
-JAVAC_FLAGS = -classpath $(ANDROID_JAR)
+JAVAC_FLAGS =
+JAVAC_FLAGS += --release 17
+JAVAC_FLAGS += -classpath $(ANDROID_JAR)
 JAVAC_FLAGS += -Xlint:deprecation
 
 D8_FLAGS = --classpath $(ANDROID_JAR)

@@ -300,9 +300,25 @@ targets:add{
 	end,
 }
 
+keystore = home/'.android/debug.keystore'
+-- if the .android/debug.keystore file is missing...
+if not keystore:exists() then
+	keystore:getdir():mkdir(true)
+	exec('keytool',
+		'-genkey', '-v',
+		'-keystore', keystore:escape(),
+		'-storepass', 'android',
+		'-alias', 'androiddebugkey',
+		'-keypass', 'android',
+		'-keyalg', 'RSA',
+		'-keysize', '2048',
+		'-validity', '10000',
+		'-dname', '"CN=Android Debug,O=Android,C=US"',
+	)
+end
+
 -- sign the apk
 apkSignedPath = apkDir/(apkTitle..'-signed-debug.apk')
-keystore = home/'.android/debug.keystore'
 targets:add{
 	dsts = {apkSignedPath},
 	srcs = {apkAlignedPath},
